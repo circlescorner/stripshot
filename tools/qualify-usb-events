@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OUT=${1:-"/tmp/stripshot-usb-events-$(date +%Y%m%d-%H%M%S)"}
+mkdir -p "$OUT"
+
+echo "===== STRIPSHOT USB EVENT QUALIFICATION ====="
+echo "Evidence: $OUT"
+echo "This tool issues NO capture commands, NO camera config writes, NO downloads, and NO deletes."
+echo "Start HDMI live view on both cameras before continuing."
+echo
+
+if ! command -v gphoto2 >/dev/null 2>&1; then
+  echo "ERROR: gphoto2 is not installed" >&2
+  exit 2
+fi
+
+gphoto2 --auto-detect | tee "$OUT/auto-detect.txt"
+mapfile -t PORTS < <(gphoto2 --auto-detect | awk '/usb:/{print $2}')
+
+if [[ ${#PORTS[@]} -ne 2 ]]; then
+  echo "ERROR: expected exactly two USB cameras, found ${#PORTS[@]}" >&2
+  exit 3
+fi
+
+cleanup() {
+  set +e
+  for pid in ${PIDS:-}; do kill "$pid" 2>/dev/null || true; done
+  wait 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+PIDS=""
+for i in 0 1; do
+  cam=$((i+1))
+  port=${PORTS[$i]}
+  log="$OUT/camera-${cam}.log"
+  echo "Camera $cam -> $port"
+  # --wait-event keeps the PTP session open and reports camera events.
+  # No --capture-image, --get-file, --delete-file, or --set-config is used.
+  stdbuf -oL -eL gphoto2 --port "$port" --wait-event=60s >"$log" 2>&1 &
+  PIDS="$PIDS $!"
+done
+
+echo
+echo "Both passive event observers are running for 60 seconds."
+echo "Now trigger ONE intervalometer cycle that creates 8 images on each camera."
+echo "Confirm visually that HDMI live view remains active before, during, and after the cycle."
+echo
+
+set +e
+wait
+RC=$?
+set -e
+
+echo
+for i in 1 2; do
+  echo "===== CAMERA $i EVENTS ====="
+  cat "$OUT/camera-${i}.log" || true
+  echo
+  echo "File-added-like lines:"
+  grep -Ei 'file|added|folder|event' "$OUT/camera-${i}.log" || true
+  echo
+ done
+
+echo "Qualification complete. Evidence: $OUT"
+exit "$RC"
