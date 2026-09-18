@@ -4,9 +4,12 @@ import argparse
 import hmac
 import json
 import logging
+import os
+import signal
+import getpass
 import secrets
 from pathlib import Path
-from flask import Flask, abort, jsonify, render_template, request, send_file
+from flask import Flask, abort, jsonify, render_template, request, send_file, Response
 from werkzeug.exceptions import HTTPException
 from batch import Engine
 from camera import DemoCamera, discover, live_cameras
@@ -20,11 +23,33 @@ def create_app(engine):
     app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
     register_preview(app, engine.workers, engine.config['demo'])
     token = secrets.token_urlsafe(32)
+    guest_token = secrets.token_urlsafe(32)
+    kiosk_mode = engine.config.get('kiosk_mode', False)
+    password = os.environ.get('STRIPSHOT_OPERATOR_PASSWORD', '')
+    if kiosk_mode and len(password) < 12:
+        raise ValueError('Set STRIPSHOT_OPERATOR_PASSWORD to at least 12 characters for kiosk mode')
+
+    def operator_authenticated():
+        auth = request.authorization
+        return bool(auth and auth.username == 'operator' and
+                    hmac.compare_digest((auth.password or '').encode(), password.encode()))
+
 
     @app.before_request
     def protect_actions():
-        if request.method == 'POST' and not hmac.compare_digest(request.headers.get('X-Stripshot-Token', ''), token):
-            abort(403, 'Reload the dashboard before making changes')
+        public = (request.path in ('/kiosk', '/api/kiosk/status', '/api/capture')
+                  or request.path.startswith(('/static/', '/view/', '/api/preview/'))
+                  or request.path == '/' and kiosk_mode)
+        if kiosk_mode and not public and not operator_authenticated():
+            return Response('Operator sign-in required', 401,
+                            {'WWW-Authenticate': 'Basic realm="Stripshot operator"'})
+        if request.method == 'POST':
+            supplied = request.headers.get('X-Stripshot-Token', '')
+            allowed = hmac.compare_digest(supplied, token)
+            if request.path == '/api/capture':
+                allowed = allowed or hmac.compare_digest(supplied, guest_token)
+            if not allowed:
+                abort(403, 'Reload the dashboard before making changes')
 
     @app.after_request
     def headers(response):
@@ -39,8 +64,27 @@ def create_app(engine):
         app.logger.warning('Request failed: %s', exc)
         return jsonify(error=str(exc)), code
 
+    @app.get('/kiosk')
+    def kiosk():
+        if engine.config['camera_mode'] != 'software':
+            abort(404)
+        return render_template('kiosk.html', token=guest_token)
+
+    @app.get('/api/kiosk/status')
+    def kiosk_status():
+        state = engine.status()
+        return jsonify(phase=state['phase'], counts=state['counts'],
+                       ready=(state['capture_mode'] == 'software' and state['phase'] == 'watching'
+                              and not state['current'] and not state['capture_busy']),
+                       printing_enabled=state['printing_enabled'],
+                       last_id=state['last']['id'] if state['last'] else None,
+                       last_status=state['last']['status'] if state['last'] else None)
+
     @app.get('/')
+    @app.get('/operator')
     def index():
+        if request.path == '/' and kiosk_mode:
+            return kiosk()
         return render_template('index.html', token=token, demo=engine.config['demo'],
                                previews=bool(engine.config.get('preview_fps', 0)),
                                software=engine.config['camera_mode'] == 'software')
@@ -98,12 +142,40 @@ def main():
     parser.add_argument('--config', default='config.json')
     parser.add_argument('--discover', action='store_true', help='Read attached camera serials, then exit')
     parser.add_argument('--dev-server', action='store_true', help='Use Werkzeug for local development only')
+    parser.add_argument('--kiosk', action='store_true', help='Serve the guest kiosk and protect operator controls')
+    parser.add_argument('--ds40-profile', action='store_true', help='Apply the accepted DS40 calibration for new batches')
+    parser.add_argument('--live-printing', action='store_true', help='Explicitly authorize one automatic print per new software batch')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     if args.discover:
         print(json.dumps(discover(), indent=2))
         return
     config = load_config(args.config)
+    if args.kiosk:
+        config['kiosk_mode'] = True
+    if config.get('kiosk_mode'):
+        if config['camera_mode'] != 'software' or config['host'] not in ('127.0.0.1', 'localhost'):
+            raise ValueError('Kiosk requires software mode on loopback only')
+        if not os.environ.get('STRIPSHOT_OPERATOR_PASSWORD'):
+            os.environ['STRIPSHOT_OPERATOR_PASSWORD'] = getpass.getpass('Operator password (at least 12 characters): ')
+        if len(os.environ['STRIPSHOT_OPERATOR_PASSWORD']) < 12:
+            raise ValueError('Operator password must contain at least 12 characters')
+    if args.ds40_profile:
+        from qualification import DS40_OPTIONS, DS40_OFFSETS
+        config['printer'].update(queue='DNP_DS40', options=dict(DS40_OPTIONS), strip_offsets_px=list(DS40_OFFSETS))
+    if args.live_printing:
+        if not config.get('kiosk_mode') or config['demo']:
+            raise ValueError('Live printing requires a real-camera kiosk configuration')
+        config['printer'].update(enabled=True, software_print_authorized=True)
+        from qualification import validate_software_printing
+        validate_software_printing(config['printer'], config['demo'])
+    print('Kiosk: http://%s:%s/kiosk' % (config['host'], config['port']), flush=True)
+    print('Operator: http://%s:%s/operator' % (config['host'], config['port']), flush=True)
+    print('Printing: ' + ('LIVE — one job per completed new batch' if config['printer']['enabled'] else 'disabled'), flush=True)
+    # SIGTERM from the service follows the same cleanup path as Ctrl+C.
+    def terminate(*_):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, terminate)
     lock = ProcessLock(config['data_dir'])
     engine = None
     try:

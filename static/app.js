@@ -102,3 +102,8 @@ async function printerStatus() {
 }
 refresh(); printerStatus();
 setInterval(refresh, 1000); setInterval(printerStatus, 15000);
+
+window.StripshotSpace.bind(document, () => {
+  const button = $('capture');
+  if (button && !button.disabled && !busy) button.click();
+});

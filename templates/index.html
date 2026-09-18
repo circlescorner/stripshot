@@ -5,6 +5,7 @@
   <meta name="stripshot-token" content="{{ token }}">
   <title>Stripshot · Operator</title>
   <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/spacebar.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -18,7 +19,7 @@
       <article class="camera"><div class="camera-title"><span class="camera-label">A</span><div><h3>Camera A</h3><p id="camera-A">Connecting</p></div><strong id="count-A">0 <small>/ 8</small></strong></div><progress id="progress-A" max="8" value="0" aria-label="Camera A photographs"></progress></article>
       <article class="camera"><div class="camera-title"><span class="camera-label warm">B</span><div><h3>Camera B</h3><p id="camera-B">Connecting</p></div><strong id="count-B">0 <small>/ 8</small></strong></div><progress id="progress-B" max="8" value="0" aria-label="Camera B photographs"></progress></article>
     </div>
-    <div class="collection-foot"><p id="waiting">Waiting for the cameras…</p><div class="actions">{% if software %}<button id="capture" class="primary">Take 8 + 8 photos</button>{% elif demo %}<button id="demo" class="primary">Simulate 8 + 8 photos</button>{% endif %}<button id="reset">Reset next 16</button></div></div>
+    <div class="collection-foot"><p id="waiting">Waiting for the cameras…</p><div class="actions">{% if software %}<button id="capture" class="primary">Take 8 + 8 photos · Space</button>{% elif demo %}<button id="demo" class="primary">Simulate 8 + 8 photos</button>{% endif %}<button id="reset">Reset next 16</button></div></div>
     <p class="hint">Reset ignores the pending photos and starts a fresh count. SD-card files are always kept.</p>
     {% if previews %}<p class="hint">Monitor pages: <a href="/view/A" target="_blank" rel="noopener">Camera A</a> · <a href="/view/B" target="_blank" rel="noopener">Camera B</a>. Open each on its monitor and select Full screen.</p>{% endif %}
     <p id="capture-records" class="hint" hidden></p>

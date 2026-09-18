@@ -20,6 +20,11 @@ def load_config(path):
     cfg.setdefault('host', '127.0.0.1')
     cfg.setdefault('port', 8080)
     cfg.setdefault('preview_fps', 0)
+    cfg.setdefault('kiosk_mode', False)
+    if type(cfg['kiosk_mode']) is not bool:
+        raise ValueError('kiosk_mode must be true or false')
+    if cfg['kiosk_mode'] and (cfg['camera_mode'] != 'software' or cfg['host'] not in ('127.0.0.1', 'localhost')):
+        raise ValueError('Kiosk requires software mode and loopback-only host')
     if type(cfg['preview_fps']) not in (int, float) or not 0 <= cfg['preview_fps'] <= 5:
         raise ValueError('preview_fps must be between 0 (disabled) and 5')
     if 0 < cfg['preview_fps'] < 1:
@@ -35,8 +40,9 @@ def load_config(path):
         serials = [cameras[c].get('serial', '').strip() for c in ('A', 'B')]
         if not all(serials) or serials[0] == serials[1]:
             raise ValueError('Two different camera serial numbers are required')
-    if cfg['camera_mode'] == 'software' and cfg['printer']['enabled']:
-        raise ValueError('Software capture printing is disabled pending hardware qualification')
+    if cfg['camera_mode'] == 'software':
+        from qualification import validate_software_printing
+        validate_software_printing(cfg['printer'], cfg['demo'])
     if cfg['demo'] and cfg['printer']['enabled']:
         raise ValueError('Demo mode cannot enable physical printing')
     if cfg['printer']['enabled'] and not cfg['printer']['queue']:

@@ -10,6 +10,7 @@ from concurrent.futures import Future
 from pathlib import Path
 from camera import CameraWorker, key, ordered
 from printer import Printer
+from qualification import validate_software_printing
 from render import normalize_overlay, render_sheet, validate_jpeg
 from storage import atomic_bytes, save_json
 from software import SoftwareWorkflow
@@ -21,8 +22,8 @@ class Engine(SoftwareWorkflow):
     def __init__(self, config, adapters):
         self.config = config
         self.software = config['camera_mode'] == 'software'
-        if self.software and config['printer']['enabled']:
-            raise ValueError('Software capture printing remains disabled pending hardware qualification')
+        if self.software:
+            validate_software_printing(config['printer'], config['demo'])
         self.capture_futures = []
         self.root = Path(config['data_dir'])
         self.root.mkdir(parents=True, exist_ok=True)
@@ -186,7 +187,14 @@ class Engine(SoftwareWorkflow):
             batch = copy.deepcopy(self.state['current'])
             self.phase = 'downloading'
         if batch.get('software') and batch['printer']['enabled']:
-            raise RuntimeError('Saved software batch cannot enable physical printing')
+            # A saved live batch cannot override a currently disabled appliance.
+            try:
+                if not self.config['printer']['enabled']:
+                    raise ValueError('Current printing configuration is disabled')
+                validate_software_printing(self.config['printer'], self.config['demo'])
+                validate_software_printing(batch['printer'], self.config['demo'])
+            except ValueError as exc:
+                raise RuntimeError('Saved software batch cannot enable physical printing: ' + str(exc)) from exc
         directory = self.root / 'batches' / batch['id']
         photos = {c: [] for c in ('A', 'B')}
         downloads = []

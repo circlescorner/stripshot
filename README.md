@@ -1,8 +1,12 @@
+> Kiosk and live-print startup: see [KIOSK.md](docs/KIOSK.md). Space starts one
+> software batch; the guest page has no operator controls. Live printing requires
+> an explicit opt-in with the physically accepted DS40 profile.
+
 # Stripshot
 
 Current stage: software capture is integrated into the appliance and tested with
 simulated cameras. The next hardware test is one two-camera batch. Physical
-printing is disabled in software mode. Do not enable unattended startup yet.
+printing defaults to disabled. Do not enable unattended startup yet.
 
 Two Nikon D3300s each take eight software-triggered photographs. Stripshot saves
 and validates those exact sixteen JPEGs, renders four independently overlaid
@@ -70,7 +74,7 @@ The actual two-camera appliance has completed repeated 8+8 batches, with visible
 preview recovery and controlled Ctrl+C/restart/explicit resume confirmed. Preview
 rates were about 2.7–2.75 FPS and typical paired rounds 4.8–5.3 seconds. See
 [hardware status](docs/HARDWARE-STATUS.md) for exact evidence and remaining limits.
-Abrupt native failure, final monitor placement, and physical printing remain
+Abrupt native failure, final monitor placement, and the combined live kiosk workflow remain
 unqualified. No additional ordinary capture batch is needed.
 
 The legacy single-camera diagnostic remains available through `test-preview`.
@@ -110,8 +114,8 @@ manifests contain intent/return timestamps, round duration and preview frame cou
   active/uncertain batch.
 - **Printer uncertainty:** the original durable print-intent protection remains.
   An uncertain CUPS submission never automatically retries. Software-mode printing
-  is rejected both by configuration validation and the engine, including recovered
-  batch settings. Hardware print qualification needs a separately approved change.
+  requires explicit qualified opt-in; both current and recovered batch settings
+  are validated. See docs/KIOSK.md for the accepted DS40 launch profile.
 
 Software mode uses a distinct saved-state binding. Existing external-event data is
 not silently reinterpreted. Use `config.software.example.json` and a separate data
@@ -218,4 +222,8 @@ down strip 1, A3,B3,A4,B4 down strip 2, and so on, as the operator requested.
 
 Software-mode print gates and durable print-intent protection remain intact.
 A production sheet has been rendered from existing originals without new
-captures, but has not been physically printed. No unattended readiness claim.
+captures; the operator accepted its physical output as job DNP_DS40-13. No unattended readiness claim.
+
+The formerly unconditional software print gate now permits explicit qualified
+opt-in; the kiosk guide describes the exact flags and recovery constraints.
+The default examples and qualification launcher still do not print.

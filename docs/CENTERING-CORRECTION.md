@@ -27,6 +27,7 @@ settings, the tested printer/media, and the 2400x1800 source sheet.
 
 The accepted values are saved in ds40-accepted-calibration.json as evidence,
 not an active application configuration. Application rendering now supports the correction through an explicit disabled
-DS40 profile; new batches freeze it and old batches retain their original settings. Production artwork/photos and repeatability remain unqualified.
-Application printing remains disabled; acceptance of centering did not authorize
-removing that gate, further prints, or merging the draft PR.
+DS40 profile; new batches freeze it and old batches retain their original settings. The operator accepted the actual photo sheet as DNP_DS40-13. Repeated live kiosk
+operation and final uploaded artwork remain unqualified.
+Application printing defaults to disabled; KIOSK.md documents explicit qualified
+opt-in. No draft PR merge is authorized.

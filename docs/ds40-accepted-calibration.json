@@ -57,8 +57,9 @@
     "number-up": "1"
   },
   "limits": [
-    "Single corrected synthetic set accepted; repeatability not established",
-    "Production photographs/overlays with this correction not printed",
-    "No application printing enablement authorized"
-  ]
+    "One corrected photo set accepted; sustained repeatability not established",
+    "Combined live kiosk hardware path pending supervised run",
+    "Printing defaults off; explicit qualified opt-in available"
+  ],
+  "photo_output_accepted_job": "DNP_DS40-13"
 }

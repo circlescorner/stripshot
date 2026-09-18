@@ -46,9 +46,20 @@ final monitor placement/usability; native disconnect and abrupt power loss.
 Subprocess SIGKILL tests use simulated cameras and do not qualify native USB.
 Uncertain shutters remain held, never automatically replaced.
 
-Application printing is still hard-disabled. No further print is authorized.
+Application printing defaults to disabled; explicit qualified opt-in is now available.
+No live kiosk capture or print was performed during development.
 No SD deletion or service changes. No unattended-readiness claim. PR stays draft.
 
 Accepted calibration is now integrated as opt-in frozen batch settings. Existing
 originals were hash-checked and re-rendered without capture or physical printing.
 The operator explicitly confirmed the existing down-strip photo order; it is unchanged.
+
+## Q4 and kiosk development
+
+The operator confirmed corrected photo job DNP_DS40-13 was centered, correctly
+ordered and unclipped. The public kiosk and guarded Space trigger are implemented.
+Qualified automatic printing now has an explicit startup opt-in; no live kiosk
+was started by this development run. A simulated browser Space-trigger completed
+one 8+8 dry-run batch and ignored extra presses during capture. Mocked live-print
+integration checks one CUPS call and restart without reprint. Supervised combined
+physical qualification and OS kiosk lockdown remain pending.
