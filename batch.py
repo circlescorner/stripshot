@@ -1,0 +1,295 @@
+"""One coordinator owns batch state; camera threads own their USB sessions."""
+import copy
+import json
+import logging
+import queue
+import threading
+import time
+import uuid
+from concurrent.futures import Future
+from pathlib import Path
+from camera import CameraWorker, key, ordered
+from printer import Printer
+from render import normalize_overlay, render_sheet, validate_jpeg
+from storage import atomic_bytes, save_json
+
+LOG = logging.getLogger(__name__)
+
+
+class Engine:
+    def __init__(self, config, adapters):
+        self.config = config
+        self.root = Path(config['data_dir'])
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.path = self.root / 'state.json'
+        self.lock = threading.RLock()
+        self.events, self.commands = queue.Queue(), queue.Queue()
+        self.stop_event = threading.Event()
+        self.workers = {c: CameraWorker(c, adapters[c], self.events, config['camera_mode'],
+                                       config['poll_seconds']) for c in ('A', 'B')}
+        self.printer = Printer(config['printer'])
+        self.phase, self.error = 'starting', None
+        self.camera_status = {c: 'connecting' for c in ('A', 'B')}
+        self.binding = {'demo': config['demo'], 'cameras': config.get('cameras', {})}
+        self.state = self._load()
+        self.thread = threading.Thread(target=self.run, name='coordinator', daemon=True)
+
+    def _load(self):
+        if not self.path.exists():
+            return {'version': 1, 'binding': self.binding, 'initialized': False,
+                    'seen': {'A': [], 'B': []}, 'pending': {'A': [], 'B': []},
+                    'current': None, 'last': None}
+        state = json.loads(self.path.read_text())  # Never replace corrupt state with a fresh baseline.
+        if state['version'] != 1 or state['binding'] != self.binding:
+            raise ValueError('State belongs to different cameras/mode; use a separate data directory')
+        if type(state['initialized']) is not bool:
+            raise ValueError('Invalid saved state')
+        for c in ('A', 'B'):
+            if not isinstance(state['seen'][c], list) or not isinstance(state['pending'][c], list):
+                raise ValueError('Invalid saved camera state')
+            if any(key(i) not in state['seen'][c] for i in state['pending'][c]):
+                raise ValueError('Pending files are missing from saved observations')
+        current = state['current']
+        if current and current['stage'] not in ('preparing', 'print_intent', 'print_uncertain'):
+            raise ValueError('Unknown saved batch stage')
+        return state
+
+    def save(self):
+        save_json(self.path, self.state)
+
+    def start(self):
+        for worker in self.workers.values():
+            worker.start()
+        self.thread.start()
+
+    def stop(self):
+        self.stop_event.set()
+        # Let an in-flight batch reach a durable boundary before ending workers.
+        if self.thread.ident is not None:
+            self.thread.join(timeout=55)
+        for worker in self.workers.values():
+            worker.stopping.set()
+        for worker in self.workers.values():
+            if worker.ident is not None:
+                worker.join(timeout=2)
+
+    def status(self):
+        with self.lock:
+            return {'phase': self.phase, 'error': self.error,
+                    'cameras': dict(self.camera_status),
+                    'counts': {c: len(self.state['pending'][c]) for c in ('A', 'B')},
+                    'current': copy.deepcopy(self.state['current']),
+                    'last': copy.deepcopy(self.state['last']),
+                    'demo': self.config['demo'], 'printing_enabled': self.config['printer']['enabled']}
+
+    def request(self, action, *args):
+        future = Future()
+        if not self.thread.is_alive():
+            future.set_exception(RuntimeError('Coordinator is stopped; inspect logs and restart'))
+        else:
+            self.commands.put((action, args, future))
+        return future
+
+    def ingest(self, camera, item):
+        ident = key(item)
+        if ident in self.state['seen'][camera]:
+            return
+        self.state['seen'][camera].append(ident)
+        self.state['pending'][camera].append(item)
+        self.save()
+
+    def initialize(self):
+        snapshots = {c: w.ready.result(timeout=120) for c, w in self.workers.items()}
+        with self.lock:
+            if not self.state['initialized']:
+                self.state['seen'] = {c: [key(i) for i in snapshots[c]] for c in ('A', 'B')}
+                self.state['initialized'] = True
+                self.save()
+            else:
+                # Missing referenced files mean a removed/replaced card or manual deletion.
+                # Stop rather than silently pair a different set of images.
+                for c in ('A', 'B'):
+                    present = {key(i) for i in snapshots[c]}
+                    needed = list(self.state['pending'][c])
+                    if self.state['current'] and self.state['current']['stage'] == 'preparing':
+                        needed += self.state['current']['files'][c]
+                    if any(key(i) not in present for i in needed):
+                        raise RuntimeError(f'Camera {c} is missing saved batch files; restore its SD card')
+                    if self.state['seen'][c] and not present.intersection(self.state['seen'][c]):
+                        raise RuntimeError(f'Camera {c} SD baseline changed; use a new data directory for a new card')
+                    for item in ordered(snapshots[c]):
+                        self.ingest(c, item)
+            self.camera_status = {c: 'connected' for c in ('A', 'B')}
+            current = self.state['current']
+            if current and current['stage'] in ('print_intent', 'print_uncertain'):
+                current['stage'] = 'print_uncertain'
+                self.save()
+                self.phase = 'print_uncertain'
+                self.error = 'A print may already exist. Check CUPS and the printer, then acknowledge. No automatic retry.'
+            else:
+                self.phase = 'watching'
+
+    def freeze(self):
+        with self.lock:
+            batch_id = 'batch-' + uuid.uuid4().hex
+            directory = self.root / 'batches' / batch_id
+            directory.mkdir(parents=True)
+            overlays = []
+            for index in range(1, 5):
+                source = self.root / 'overlays' / f'strip{index}.png'
+                if source.exists():
+                    destination = directory / f'overlay{index}.png'
+                    atomic_bytes(destination, source.read_bytes())
+                    overlays.append(destination.name)
+                else:
+                    overlays.append(None)
+            self.state['current'] = {
+                'id': batch_id, 'stage': 'preparing', 'created_at': time.time(),
+                'files': {c: self.state['pending'][c][:8] for c in ('A', 'B')},
+                'layout': copy.deepcopy(self.config['layout']),
+                'printer': copy.deepcopy(self.config['printer']), 'overlays': overlays,
+            }
+            for c in ('A', 'B'):
+                self.state['pending'][c] = self.state['pending'][c][8:]
+            self.save()
+            save_json(directory / 'manifest.json', self.state['current'])
+
+    def process(self):
+        with self.lock:
+            batch = copy.deepcopy(self.state['current'])
+            self.phase = 'downloading'
+        directory = self.root / 'batches' / batch['id']
+        photos = {c: [] for c in ('A', 'B')}
+        downloads = []
+        for c in ('A', 'B'):
+            for index, item in enumerate(batch['files'][c], 1):
+                path = directory / f'{c}{index:02d}.jpg'
+                photos[c].append(path)
+                # Restart/retry of preparation is safe; no printing has been attempted.
+                downloads.append((self.workers[c].request('download', item, path), path))
+        for future, path in downloads:
+            future.result(timeout=120)
+            validate_jpeg(path)
+        with self.lock:
+            self.phase = 'rendering'
+        overlays = [directory / p if p else None for p in batch['overlays']]
+        sheet = directory / 'sheet.png'
+        render_sheet(photos, overlays, batch['layout'], sheet)
+        with self.lock:
+            if any(w.failure for w in self.workers.values()):
+                raise RuntimeError('Camera failed during preparation; restart after checking connections')
+            self.phase = 'submitting'
+            # Persist intent BEFORE calling lp. A crash after here must never resubmit.
+            self.state['current']['stage'] = 'print_intent'
+            self.save()
+        try:
+            result = Printer(batch['printer']).submit(sheet, batch['id'])
+        except Exception as exc:
+            with self.lock:
+                self.state['current']['stage'] = 'print_uncertain'
+                self.state['current']['error'] = str(exc)
+                self.save()
+                self.phase, self.error = 'print_uncertain', str(exc)
+            return
+        with self.lock:
+            completed = {**batch, **result, 'stage': 'complete', 'completed_at': time.time()}
+            self.state['last'] = completed
+            self.state['current'] = None
+            self.save()
+            save_json(directory / 'manifest.json', completed)
+            self.phase, self.error = 'watching', None
+
+    def action(self, action, *args):
+        if action == 'overlay':
+            index, content = args
+            if index not in (1, 2, 3, 4):
+                raise ValueError('Invalid strip number')
+            atomic_bytes(self.root / 'overlays' / f'strip{index}.png', normalize_overlay(content))
+        elif action == 'reset':
+            if self.state['current'] or self.phase != 'watching':
+                raise ValueError('Reset is available only while watching with no active batch')
+            futures = {c: w.request('snapshot') for c, w in self.workers.items()}
+            snapshots = {c: f.result(timeout=120) for c, f in futures.items()}
+            with self.lock:
+                for c in ('A', 'B'):
+                    # Keep prior observations to ignore queued old events.
+                    self.state['seen'][c] = list(set(self.state['seen'][c]) | {key(i) for i in snapshots[c]})
+                    self.state['pending'][c] = []
+                self.save()
+        elif action == 'acknowledge':
+            with self.lock:
+                if self.phase != 'print_uncertain':
+                    raise ValueError('There is no uncertain print to acknowledge')
+                completed = {**self.state['current'], 'stage': 'complete',
+                             'status': 'acknowledged_without_retry', 'completed_at': time.time()}
+                self.state['last'], self.state['current'] = completed, None
+                self.save()
+                save_json(self.root / 'batches' / completed['id'] / 'manifest.json', completed)
+                self.phase, self.error = 'watching', None
+        elif action == 'retry':
+            if self.phase != 'error' or not self.state['current'] or self.state['current']['stage'] != 'preparing':
+                raise ValueError('Only a failed preparation can be retried')
+            if any(w.failure for w in self.workers.values()):
+                raise ValueError('A camera worker failed; check its connection and restart Stripshot')
+            self.phase, self.error = 'watching', None
+        elif action == 'demo':
+            if not self.config['demo'] or self.phase != 'watching' or self.state['current']:
+                raise ValueError('Demo capture is available only while the demo is watching')
+            futures = [w.request('shoot') for w in self.workers.values()]
+            for future in futures:
+                future.result(timeout=30)
+        else:
+            raise ValueError('Unknown action')
+
+    def run(self):
+        try:
+            self.initialize()
+            while not self.stop_event.is_set():
+                # A failed camera holds the whole appliance; its partner cannot print alone.
+                if any(w.failure for w in self.workers.values()) and self.phase != 'print_uncertain':
+                    with self.lock:
+                        self.phase = 'error'
+                        self.error = 'Camera connection failed. Check connections and restart Stripshot.'
+                        for c, w in self.workers.items():
+                            if w.failure:
+                                self.camera_status[c] = w.failure
+                try:
+                    action, args, future = self.commands.get_nowait()
+                except queue.Empty:
+                    future = None
+                if future is not None:
+                    try:
+                        self.action(action, *args)
+                        future.set_result(True)
+                    except Exception as exc:
+                        future.set_exception(exc)
+                try:
+                    c, item, error = self.events.get(timeout=0.05)
+                    with self.lock:
+                        if error:
+                            self.camera_status[c] = error
+                        elif item:
+                            self.ingest(c, item)
+                except queue.Empty:
+                    pass
+                if self.phase == 'watching':
+                    try:
+                        if not self.state['current'] and all(len(self.state['pending'][c]) >= 8 for c in ('A', 'B')):
+                            self.freeze()
+                        if self.state['current']:
+                            self.process()
+                    except Exception as exc:
+                        LOG.exception('Batch preparation failed')
+                        with self.lock:
+                            self.phase, self.error = 'error', str(exc)
+        except Exception as exc:
+            LOG.exception('Coordinator stopped')
+            with self.lock:
+                self.phase, self.error = 'error', str(exc)
+        finally:
+            while True:
+                try:
+                    _, _, future = self.commands.get_nowait()
+                    future.set_exception(RuntimeError('Coordinator stopped; inspect logs and restart'))
+                except queue.Empty:
+                    break

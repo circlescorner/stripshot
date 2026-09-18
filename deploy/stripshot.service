@@ -1,0 +1,14 @@
+[Unit]
+Description=Stripshot dual-camera photo-strip appliance
+
+[Service]
+Type=simple
+WorkingDirectory=%h/stripshot
+ExecStart=%h/stripshot/.venv/bin/python %h/stripshot/app.py --config %h/stripshot/config.json
+Environment=PYTHONUNBUFFERED=1
+Restart=no
+TimeoutStopSec=60
+UMask=0077
+
+[Install]
+WantedBy=default.target

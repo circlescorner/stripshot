@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="stripshot-token" content="{{ token }}">
+  <title>Stripshot · Operator</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+<main>
+  <header><a class="brand" href="/">stripshot<span>®</span></a><span class="edition">OPERATOR / 01</span><span id="mode" class="badge">Connecting</span></header>
+  <section class="intro"><div><p class="eyebrow">TWO CAMERAS. ONE GOOD MOMENT.</p><h1>From shutter<br>to keepsake.</h1><p class="subtitle">Eight photos each. Four strips. All together.</p></div><div class="status-block"><span class="pulse" id="pulse"></span><p id="phase">Starting up</p><small id="phase-detail">Connecting to the cameras…</small></div></section>
+  <div id="notice" role="status" aria-live="polite" hidden></div>
+  <section class="collection panel" aria-label="Current batch">
+    <div class="section-head"><h2>Next sixteen</h2><span class="eyebrow">AUTOMATIC COLLECTION</span></div>
+    <div class="cameras">
+      <article class="camera"><div class="camera-title"><span class="camera-label">A</span><div><h3>Camera A</h3><p id="camera-A">Connecting</p></div><strong id="count-A">0 <small>/ 8</small></strong></div><progress id="progress-A" max="8" value="0" aria-label="Camera A photographs"></progress></article>
+      <article class="camera"><div class="camera-title"><span class="camera-label warm">B</span><div><h3>Camera B</h3><p id="camera-B">Connecting</p></div><strong id="count-B">0 <small>/ 8</small></strong></div><progress id="progress-B" max="8" value="0" aria-label="Camera B photographs"></progress></article>
+    </div>
+    <div class="collection-foot"><p id="waiting">Waiting for the cameras…</p><div class="actions">{% if demo %}<button id="demo" class="primary">Simulate 8 + 8 photos</button>{% endif %}<button id="reset">Reset next 16</button></div></div>
+    <p class="hint">Reset ignores the pending photos and starts a fresh count. SD-card files are always kept.</p>
+    <button id="retry" hidden>Retry preparation</button><button id="acknowledge" hidden>I checked the printer — continue without reprinting</button>
+  </section>
+  <section class="overlays"><div class="section-head"><div><p class="eyebrow">MAKE IT YOURS</p><h2>Four strips. Four signatures.</h2></div><p class="hint">600 × 1800 PNG · transparent photo areas<br>Text belongs in your artwork.</p></div>
+    <div class="strip-grid">{% for i in range(1, 5) %}<article class="strip-card"><div class="strip-art"><img src="/overlays/{{ i }}.png" alt="Strip {{ i }} overlay preview" id="overlay-{{ i }}"></div><div class="strip-meta"><h3>Strip 0{{ i }}</h3><span>{{ 'A' ~ (i*2-1) }} · {{ 'B' ~ (i*2-1) }} · {{ 'A' ~ (i*2) }} · {{ 'B' ~ (i*2) }}</span></div><label class="upload" for="file-{{ i }}">Change PNG<input id="file-{{ i }}" type="file" accept="image/png" data-strip="{{ i }}"></label></article>{% endfor %}</div>
+    <p class="hint">Changes apply to the next batch. Each batch keeps its own copy of the artwork.</p>
+  </section>
+  <section class="bottom-grid"><article class="panel last"><p class="eyebrow">THE LAST KEEPSAKE</p><h2 id="last-title">Your first sheet is next.</h2><p id="last-detail" class="hint">Completed sheets appear here.</p><img id="last-preview" hidden alt="Last rendered four-strip sheet"></article><article class="panel print"><p class="eyebrow">OUTPUT</p><h2>One sheet.<br>Four memories.</h2><div class="print-spec"><span>6 × 8 INCH SHEET</span><span>4 × 2 × 6 STRIPS</span><span>300 DPI</span></div><p id="printer-status" class="hint">Checking print configuration…</p><p class="hint">“Submitted” means CUPS accepted the job. Check the printer for physical completion.</p></article></section>
+  <footer><span>STRIPSHOT / MADE TO KEEP</span><span>HDMI owns live view. Intervalometers own the moment.</span></footer>
+</main>
+</body></html>

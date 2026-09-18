@@ -1,0 +1,4 @@
+Flask>=3.1,<4
+Pillow>=10.4,<13
+waitress>=3.0,<4
+# Live cameras additionally need python3-gphoto2 (Ubuntu apt package).
