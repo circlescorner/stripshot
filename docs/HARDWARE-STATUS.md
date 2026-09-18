@@ -5,7 +5,7 @@
 Ubuntu Lenovo W541, two Nikon D3300s with SD cards. The actual software-mode
 appliance completed three ordinary 8+8 batches and one interrupted/resumed batch.
 Each completed four-strip sheet retained sixteen exact originals. The handoff
-verified all 64 originals against persisted SHA-256 values. No physical print.
+verified all 64 originals against persisted SHA-256 values. Those camera batches were dry runs.
 
 Evidence: `/tmp/stripshot-two-cameras-hgc2l_yp/`.
 
@@ -30,15 +30,21 @@ StpiShrinkOutput Crop, StpNoCutWaste False. Reported media: 6x8 (A5),
 164 native prints remaining (82%). Supply values may be cached.
 Sandbox “Scheduler is not running” was not host evidence; no service changes made.
 
+## Physical printer results
+
+Three individually authorized synthetic jobs completed: DNP_DS40-10 (four strips,
+centering error), DNP_DS40-11 (measurement target), DNP_DS40-12 (corrected target).
+Operator accepted Q3 centering. Offsets +20, +15, +6, -2 px at 300 DPI; residual
+center errors at most 0.35 mm in the reported middle-gauge measurements.
+See CENTERING-CORRECTION.md and ds40-accepted-calibration.json for exact settings.
+This acceptance applies to the synthetic target, not yet to production artwork.
+
 ## Outstanding
 
-Final monitor connections/placement/usability, native USB disconnect, abrupt
-hardware failure/power loss, and all physical printing remain unqualified.
-A real subprocess SIGKILL regression now checks restart at persisted intent and
-returned-path boundaries using simulated cameras. It does not qualify native USB.
-Uncertain shutters must hold and cannot be resumed or replaced automatically.
+Application calibration integration and separately authorized production printing;
+final monitor placement/usability; native disconnect and abrupt power loss.
+Subprocess SIGKILL tests use simulated cameras and do not qualify native USB.
+Uncertain shutters remain held, never automatically replaced.
 
-Printing remains hard-disabled in software mode. See PRINT-QUALIFICATION.md for
-the proposed one-job test; explicit authorization is required before submission.
-No SD deletions, service changes, physical exposures, or print submissions were
-performed during this reconciliation. No unattended-readiness claim.
+Application printing is still hard-disabled. No further print is authorized.
+No SD deletion or service changes. No unattended-readiness claim. PR stays draft.
