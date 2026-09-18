@@ -244,3 +244,7 @@ reconnect, and nonblocking dashboard polling are described in
 [the update notes](docs/WEDDING-RECOVERY-UPDATE.md). Preferred alternating A/B order
 remains the default; duplicate/omitted selections are rejected. Before unattended
 deployment, follow the [stopped-state migration plan](docs/DATA-MIGRATION.md).
+
+[Live preview speed](docs/PREVIEW-SPEED.md) can now be saved in the operator dashboard
+(1–15 FPS target for both cameras, with actual FPS shown). Start with 5 FPS; hardware
+may deliver less than the requested rate. Change only between batches.

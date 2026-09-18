@@ -15,6 +15,7 @@ from render import normalize_overlay, render_sheet, validate_jpeg, validate_layo
 from storage import atomic_bytes, save_json
 from software import SoftwareWorkflow
 from recovery import CameraRecovery
+from config import validate_preview_fps
 
 LOG = logging.getLogger(__name__)
 
@@ -32,6 +33,11 @@ class Engine(CameraRecovery, SoftwareWorkflow):
         self.root = Path(config['data_dir'])
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = self.root / 'state.json'
+        self.preview_settings_path = self.root / 'operator-preview.json'
+        if self.preview_settings_path.exists():
+            saved = json.loads(self.preview_settings_path.read_text())
+            validate_preview_fps(saved['fps'], allow_disabled=False)
+            self.config['preview_fps'] = saved['fps']
         self.layout_path = self.root / 'operator-layout.json'
         self.layout = (json.loads(self.layout_path.read_text()) if self.layout_path.exists()
                        else copy.deepcopy(config['layout']))
@@ -100,6 +106,7 @@ class Engine(CameraRecovery, SoftwareWorkflow):
     def status(self):
         with self.lock:
             return {'phase': self.phase, 'error': self.error,
+                    'preview_fps': self.config.get('preview_fps', 0),
                     'layout': copy.deepcopy(self.layout),
                     'uptime_seconds': int(time.monotonic() - self.started_at),
                     'cameras': dict(self.camera_status),
@@ -264,6 +271,21 @@ class Engine(CameraRecovery, SoftwareWorkflow):
             if not self.software:
                 raise ValueError('Select software capture mode first')
             return self.software_action(action)
+        if action == 'preview_settings':
+            candidate = args[0]
+            if not isinstance(candidate, dict) or set(candidate) != {'fps'}:
+                raise ValueError('Preview settings need fps')
+            validate_preview_fps(candidate['fps'], allow_disabled=False)
+            if (self.phase != 'watching' or self.state['current']
+                    or not self.config.get('preview_fps')
+                    or any(w.failure for w in self.workers.values())):
+                raise ValueError('Change preview speed only while cameras are ready, previews enabled, and no batch is active')
+            with self.lock:
+                save_json(self.preview_settings_path, candidate)
+                self.config['preview_fps'] = candidate['fps']
+                for worker in self.workers.values():
+                    worker.preview_fps = candidate['fps']
+            return
         if action == 'layout':
             candidate = copy.deepcopy(args[0])
             validate_layout(candidate)

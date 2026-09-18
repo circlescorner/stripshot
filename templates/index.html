@@ -28,6 +28,14 @@
     <button id="resume-capture" hidden>Resume known shots and remaining slots</button><button id="abandon-capture" hidden>Abandon held batch — keep all files</button>
     <button id="retry" hidden>Retry preparation</button><button id="acknowledge" hidden>I checked the printer — continue without reprinting</button>
   </section>
+  {% if previews %}<section class="panel" aria-label="Live preview speed">
+    <h2>Live preview speed</h2>
+    <form id="preview-form"><label>Target FPS per camera <input id="preview-fps" type="number" min="1" max="15" step="0.5" required></label>
+      <button id="preview-save" type="submit">Save preview speed</button>
+    </form>
+    <p class="hint">Try 5 FPS first. Higher targets may be limited by camera/USB speed or increase heat and load. Change only between batches. The batch still takes eight photos per camera.</p>
+    <p id="preview-measured" class="hint"></p><p id="preview-message" class="hint" role="status"></p>
+  </section>{% endif %}
   <section class="panel layout-panel" aria-label="Photo size and margins">
     <div class="section-head"><h2>Photo size &amp; margins</h2><span class="eyebrow">NEXT BATCH</span></div>
     <form id="layout-form">

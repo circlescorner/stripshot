@@ -20,5 +20,6 @@ def register_preview(app, workers, demo=False):
         else:
             response = make_response(data)
             response.mimetype = 'image/jpeg'
+        response.headers['X-Preview-FPS'] = str(worker.preview_fps)
         response.headers['Cache-Control'] = 'no-store'
         return response

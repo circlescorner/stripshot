@@ -6,6 +6,7 @@ let lastPreview = '';
 let actionError = '';
 let layoutLoaded = false;
 let refreshing = false;
+let previewLoaded = false;
 async function boundedFetch(url, options = {}, timeoutMs = 5000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -38,6 +39,11 @@ async function refresh() {
     if (state.layout) {
       const order = state.layout.photo_order ?? Array.from({length:4}, (_,i) => [`A${i*2+1}`,`B${i*2+1}`,`A${i*2+2}`,`B${i*2+2}`]);
       order.forEach((strip,i) => { $('saved-order-'+(i+1)).textContent = strip.join(' · '); });
+    }
+    if ($('preview-form')) {
+      if (!previewLoaded) { $('preview-fps').value = state.preview_fps; previewLoaded = true; }
+      $('preview-save').disabled = busy || state.phase !== 'watching' || Boolean(state.current);
+      $('preview-measured').textContent = `Saved target: ${state.preview_fps} FPS · Actual A: ${state.previews.A.recent_fps} FPS · B: ${state.previews.B.recent_fps} FPS`;
     }
     $('uptime').textContent = `Running for ${Math.floor(state.uptime_seconds / 3600)}h ${Math.floor(state.uptime_seconds % 3600 / 60)}m · No application session expiry`;
     const [title, detail] = descriptions[state.phase] || ['Paused', 'Check the appliance.'];
@@ -157,4 +163,11 @@ $('layout-form').onsubmit = async event => {
   } else {
     $('layout-message').textContent = 'Not saved. ' + actionError;
   }
+};
+
+if ($('preview-form')) $('preview-form').onsubmit = async event => {
+  event.preventDefault();
+  $('preview-message').textContent = '';
+  const ok = await post('/api/preview-settings', JSON.stringify({fps:Number($('preview-fps').value)}), true);
+  $('preview-message').textContent = ok ? 'Saved. Both previews now use this target; retained after restart.' : 'Not saved. ' + actionError;
 };

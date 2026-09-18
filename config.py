@@ -3,6 +3,11 @@ import json
 from pathlib import Path
 
 
+def validate_preview_fps(value, allow_disabled=True):
+    if type(value) not in (int, float) or not (1 <= value <= 15 or allow_disabled and value == 0):
+        raise ValueError('Preview FPS must be between 1 and 15' + (' (or 0 to disable)' if allow_disabled else ''))
+
+
 def load_config(path):
     path = Path(path).resolve()
     cfg = json.loads(path.read_text())
@@ -28,10 +33,7 @@ def load_config(path):
         raise ValueError('kiosk_mode must be true or false')
     if cfg['kiosk_mode'] and (cfg['camera_mode'] != 'software' or cfg['host'] not in ('127.0.0.1', 'localhost')):
         raise ValueError('Kiosk requires software mode and loopback-only host')
-    if type(cfg['preview_fps']) not in (int, float) or not 0 <= cfg['preview_fps'] <= 5:
-        raise ValueError('preview_fps must be between 0 (disabled) and 5')
-    if 0 < cfg['preview_fps'] < 1:
-        raise ValueError('Enabled preview_fps must be at least 1')
+    validate_preview_fps(cfg['preview_fps'])
     if cfg['camera_mode'] not in ('events', 'poll', 'software'):
         raise ValueError('camera_mode must be events, poll or software')
     if not 0.25 <= cfg['poll_seconds'] <= 60:

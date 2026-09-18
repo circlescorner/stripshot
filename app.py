@@ -115,6 +115,11 @@ def create_app(engine):
         engine.request(action).result(timeout=130)
         return jsonify(ok=True)
 
+    @app.post('/api/preview-settings')
+    def preview_settings():
+        engine.request('preview_settings', request.get_json()).result(timeout=130)
+        return jsonify(ok=True)
+
     @app.post('/api/layout')
     def layout():
         candidate = request.get_json()

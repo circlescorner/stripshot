@@ -473,10 +473,13 @@ class CameraWorker(threading.Thread):
                         raise
                     continue
                 if time.monotonic() >= next_preview:
+                    preview_started_at = time.monotonic()
                     method = (self.adapter.keepalive_preview if self.mode == 'software' and isinstance(self.adapter, GPhotoCamera)
                               else self.adapter.preview)
                     self.publish_frame(method())
-                    next_preview = time.monotonic() + 1 / self.preview_fps
+                    # Target start-to-start cadence, not a full interval added
+                    # after USB transfer. Commands still run before previews.
+                    next_preview = preview_started_at + 1 / self.preview_fps
                 if self.mode == 'events':
                     item = self.adapter.event()
                     if item:
@@ -489,7 +492,7 @@ class CameraWorker(threading.Thread):
                     observed = {key(i) for i in items}
                     next_poll = time.monotonic() + self.poll_seconds
                 else:
-                    self.stopping.wait(0.05)
+                    self.stopping.wait(min(0.05, max(0.005, next_preview - time.monotonic())))
         except Exception as exc:
             self.failure = str(exc)
             if not self.ready.done():
