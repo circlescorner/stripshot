@@ -14,10 +14,11 @@
   "camera_mode": "software",
   "poll_seconds": 2,
   "layout": {
-    "margin": 24,
-    "gap": 18,
-    "top": 24,
-    "bottom": 180
+    "margin": 36,
+    "gap": 24,
+    "top": 36,
+    "bottom": 180,
+    "photo_scale": 95
   },
   "printer": {
     "enabled": false,

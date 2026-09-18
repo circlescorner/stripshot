@@ -4,6 +4,13 @@ const token = document.querySelector('meta[name="stripshot-token"]').content;
 let busy = false;
 let lastPreview = '';
 let actionError = '';
+let layoutLoaded = false;
+async function boundedFetch(url, options = {}, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try { return await fetch(url, {...options, signal:controller.signal}); }
+  finally { clearTimeout(timeout); }
+}
 const descriptions = {
   capturing: ['Taking your photos', 'Eight paired rounds, with previews between shots.'],
   capture_held: ['Capture paused', 'Review the saved shutter records before resuming or abandoning.'],
@@ -17,9 +24,14 @@ const descriptions = {
 };
 async function refresh() {
   try {
-    const response = await fetch('/api/status');
+    const response = await boundedFetch('/api/status');
     if (!response.ok) throw new Error('Dashboard status is unavailable');
     const state = await response.json();
+    if (!layoutLoaded && state.layout) {
+      fillLayout(state.layout);
+      layoutLoaded = true;
+    }
+    $('uptime').textContent = `Running for ${Math.floor(state.uptime_seconds / 3600)}h ${Math.floor(state.uptime_seconds % 3600 / 60)}m · No application session expiry`;
     const [title, detail] = descriptions[state.phase] || ['Paused', 'Check the appliance.'];
     $('phase').textContent = title;
     $('phase-detail').textContent = state.capture_mode === 'software' && state.phase === 'watching' ? 'Ready to take eight photos on each camera.' : state.capture_mode === 'software' && state.phase === 'starting' ? 'Opening camera sessions and previews.' : detail;
@@ -68,11 +80,11 @@ async function refresh() {
     if ($('demo')) $('demo').disabled = true;
   }
 }
-async function post(url, body) {
+async function post(url, body, json = false) {
   busy = true; actionError = '';
   document.querySelectorAll('button').forEach(button => button.disabled = true);
   try {
-    const response = await fetch(url, {method:'POST', headers:{'X-Stripshot-Token':token}, body});
+    const response = await boundedFetch(url, {method:'POST', headers:{'X-Stripshot-Token':token, ...(json ? {'Content-Type':'application/json'} : {})}, body}, 135000);
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Action failed');
     return true;
@@ -97,13 +109,32 @@ document.querySelectorAll('input[data-strip]').forEach(input => input.onchange =
   input.value = '';
 });
 async function printerStatus() {
-  try { const response = await fetch('/api/printer'); const data = await response.json(); $('printer-status').textContent = data.status; }
+  try { const response = await boundedFetch('/api/printer'); const data = await response.json(); $('printer-status').textContent = data.status; }
   catch { $('printer-status').textContent = 'Printer status unavailable'; }
 }
-refresh(); printerStatus();
-setInterval(refresh, 1000); setInterval(printerStatus, 15000);
+async function statusLoop() { await refresh(); setTimeout(statusLoop, 1000); }
+async function printerLoop() { await printerStatus(); setTimeout(printerLoop, 15000); }
+statusLoop(); printerLoop();
 
 window.StripshotSpace.bind(document, () => {
   const button = $('capture');
   if (button && !button.disabled && !busy) button.click();
 });
+
+function fillLayout(layout) {
+  for (const name of ['margin','top','bottom','gap']) $('layout-' + name).value = (layout[name] * 25.4 / 300).toFixed(2);
+  $('layout-scale').value = layout.photo_scale ?? 100;
+}
+$('layout-larger').onclick = () => {
+  fillLayout({margin:36,top:36,bottom:180,gap:24,photo_scale:95});
+  $('layout-message').textContent = 'Suggested larger margins loaded. Save to apply to the next batch.';
+};
+$('layout-form').onsubmit = async event => {
+  event.preventDefault();
+  const layout = {};
+  for (const name of ['margin','top','bottom','gap']) layout[name] = Math.round(Number($('layout-' + name).value) * 300 / 25.4);
+  layout.photo_scale = Number($('layout-scale').value);
+  if (await post('/api/layout', JSON.stringify(layout), true)) {
+    $('layout-message').textContent = 'Saved for future batches and restarts. Current batch unchanged.';
+  }
+};

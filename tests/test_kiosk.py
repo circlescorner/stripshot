@@ -33,7 +33,7 @@ class KioskTests(unittest.TestCase):
         headers = {'X-Stripshot-Token': token}
         for path in ('/operator','/api/status','/api/printer','/overlays/1.png'):
             self.assertEqual(client.get(path).status_code, 401)
-        for action in ('reset','resume_capture','abandon_capture','retry','acknowledge'):
+        for action in ('layout','reset','resume_capture','abandon_capture','retry','acknowledge'):
             self.assertEqual(client.post('/api/'+action, headers=headers).status_code, 401)
         self.assertEqual(client.post('/api/capture').status_code,403)
         self.assertEqual(client.post('/api/capture',headers=headers).status_code,200)

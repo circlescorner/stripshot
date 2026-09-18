@@ -16,14 +16,18 @@ def validate_strip_offsets(offsets):
 
 
 def validate_layout(layout):
-    if set(layout) != {'margin', 'gap', 'top', 'bottom'} or any(
-        type(v) is not int or v < 0 for v in layout.values()
-    ):
-        raise ValueError('Layout needs nonnegative integer margin, gap, top, bottom')
-    if 600 - 2 * layout['margin'] < 100:
-        raise ValueError('Photo width must be at least 100 pixels')
-    if (1800 - layout['top'] - layout['bottom'] - 3 * layout['gap']) // 4 < 100:
-        raise ValueError('Photo height must be at least 100 pixels')
+    required = {'margin', 'gap', 'top', 'bottom'}
+    if not isinstance(layout, dict) or not required <= set(layout) or set(layout) - required - {'photo_scale'}:
+        raise ValueError('Layout needs margin, gap, top, bottom and optional photo_scale')
+    if any(type(layout[k]) is not int or layout[k] < 0 for k in required):
+        raise ValueError('Margins and gaps must be nonnegative integer pixels')
+    scale = layout.get('photo_scale', 100)
+    if type(scale) is not int or not 50 <= scale <= 100:
+        raise ValueError('Photo scale must be an integer from 50 to 100 percent')
+    if (600 - 2 * layout['margin']) * scale // 100 < 100:
+        raise ValueError('Scaled photo width must be at least 100 pixels')
+    if ((1800 - layout['top'] - layout['bottom'] - 3 * layout['gap']) // 4) * scale // 100 < 100:
+        raise ValueError('Scaled photo height must be at least 100 pixels')
 
 
 def validate_jpeg(path):
@@ -73,7 +77,12 @@ def render_sheet(photos, overlays, layout, output, strip_offsets_px=None):
                 img.seek(0)
                 photo = ImageOps.fit(ImageOps.exif_transpose(img).convert('RGB'),
                                      (width, height), method=Image.Resampling.LANCZOS)
-            strip.paste(photo, (layout['margin'], layout['top'] + row * (height + layout['gap'])))
+            scale = layout.get('photo_scale', 100)
+            scaled_width, scaled_height = width * scale // 100, height * scale // 100
+            if scale != 100:
+                photo = photo.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+            strip.paste(photo, (layout['margin'] + (width - scaled_width) // 2,
+                               layout['top'] + row * (height + layout['gap']) + (height - scaled_height) // 2))
         if overlays[index] is not None:
             with Image.open(overlays[index]) as overlay:
                 if overlay.size != STRIP:

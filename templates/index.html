@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/style.css">
   <script defer src="/static/spacebar.js"></script>
   <script defer src="/static/app.js"></script>
+<script defer src="/static/keep-awake.js"></script>
 </head>
 <body>
 <main>
@@ -25,6 +26,23 @@
     <p id="capture-records" class="hint" hidden></p>
     <button id="resume-capture" hidden>Resume known shots and remaining slots</button><button id="abandon-capture" hidden>Abandon held batch — keep all files</button>
     <button id="retry" hidden>Retry preparation</button><button id="acknowledge" hidden>I checked the printer — continue without reprinting</button>
+  </section>
+  <section class="panel layout-panel" aria-label="Photo size and margins">
+    <div class="section-head"><h2>Photo size &amp; margins</h2><span class="eyebrow">NEXT BATCH</span></div>
+    <form id="layout-form">
+      <div class="layout-fields">
+        <label>Side margins (mm)<input id="layout-margin" type="number" min="0" max="20" step="0.01" required></label>
+        <label>Top margin (mm)<input id="layout-top" type="number" min="0" max="100" step="0.01" required></label>
+        <label>Bottom margin (mm)<input id="layout-bottom" type="number" min="0" max="100" step="0.01" required></label>
+        <label>Gap between photos (mm)<input id="layout-gap" type="number" min="0" max="30" step="0.01" required></label>
+        <label>Photo size (%)<input id="layout-scale" type="number" min="50" max="100" step="1" required></label>
+      </div>
+      <p class="hint">Photos shrink within their slots. Artwork stays at its original size. All four strips use these values. Active batches keep their frozen layout.</p>
+      <p class="hint" id="layout-message" role="status"></p>
+      <button type="submit" class="primary">Save for next batch</button>
+      <button type="button" id="layout-larger">Slightly larger margins</button>
+    </form>
+    <p class="hint" id="uptime"></p><p class="hint" id="wake-status"></p>
   </section>
   <section class="overlays"><div class="section-head"><div><p class="eyebrow">MAKE IT YOURS</p><h2>Four strips. Four signatures.</h2></div><p class="hint">600 × 1800 PNG · transparent photo areas<br>Text belongs in your artwork.</p></div>
     <div class="strip-grid">{% for i in range(1, 5) %}<article class="strip-card"><div class="strip-art"><img src="/overlays/{{ i }}.png" alt="Strip {{ i }} overlay preview" id="overlay-{{ i }}"></div><div class="strip-meta"><h3>Strip 0{{ i }}</h3><span>{{ 'A' ~ (i*2-1) }} · {{ 'B' ~ (i*2-1) }} · {{ 'A' ~ (i*2) }} · {{ 'B' ~ (i*2) }}</span></div><label class="upload" for="file-{{ i }}">Change PNG<input id="file-{{ i }}" type="file" accept="image/png" data-strip="{{ i }}"></label></article>{% endfor %}</div>

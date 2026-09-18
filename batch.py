@@ -11,7 +11,7 @@ from pathlib import Path
 from camera import CameraWorker, key, ordered
 from printer import Printer
 from qualification import validate_software_printing
-from render import normalize_overlay, render_sheet, validate_jpeg
+from render import normalize_overlay, render_sheet, validate_jpeg, validate_layout
 from storage import atomic_bytes, save_json
 from software import SoftwareWorkflow
 
@@ -28,6 +28,11 @@ class Engine(SoftwareWorkflow):
         self.root = Path(config['data_dir'])
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = self.root / 'state.json'
+        self.layout_path = self.root / 'operator-layout.json'
+        self.layout = (json.loads(self.layout_path.read_text()) if self.layout_path.exists()
+                       else copy.deepcopy(config['layout']))
+        validate_layout(self.layout)
+        self.started_at = time.monotonic()
         self.lock = threading.RLock()
         self.events, self.commands = queue.Queue(), queue.Queue()
         self.stop_event = threading.Event()
@@ -91,6 +96,8 @@ class Engine(SoftwareWorkflow):
     def status(self):
         with self.lock:
             return {'phase': self.phase, 'error': self.error,
+                    'layout': copy.deepcopy(self.layout),
+                    'uptime_seconds': int(time.monotonic() - self.started_at),
                     'cameras': dict(self.camera_status),
                     'previews': {c: w.preview_status() for c, w in self.workers.items()},
                     'capture_mode': self.config['camera_mode'],
@@ -171,7 +178,7 @@ class Engine(SoftwareWorkflow):
             self.state['current'] = {
                 'id': batch_id, 'stage': 'preparing', 'created_at': time.time(),
                 'files': {c: self.state['pending'][c][:8] for c in ('A', 'B')},
-                'layout': copy.deepcopy(self.config['layout']),
+                'layout': copy.deepcopy(self.layout),
                 'printer': copy.deepcopy(self.config['printer']), 'overlays': overlays,
             }
             if software:
@@ -248,7 +255,13 @@ class Engine(SoftwareWorkflow):
             if not self.software:
                 raise ValueError('Select software capture mode first')
             return self.software_action(action)
-        if action == 'overlay':
+        if action == 'layout':
+            candidate = copy.deepcopy(args[0])
+            validate_layout(candidate)
+            with self.lock:
+                save_json(self.layout_path, candidate)
+                self.layout = candidate
+        elif action == 'overlay':
             index, content = args
             if index not in (1, 2, 3, 4):
                 raise ValueError('Invalid strip number')

@@ -227,3 +227,12 @@ captures; the operator accepted its physical output as job DNP_DS40-13. No unatt
 The formerly unconditional software print gate now permits explicit qualified
 opt-in; the kiosk guide describes the exact flags and recovery constraints.
 The default examples and qualification launcher still do not print.
+
+## Photo margins and continuous operation
+
+The operator can save side/top/bottom margins, photo gaps (millimeters) and photo
+size (50–100%) for future batches. Settings persist across restarts and active
+batches retain their frozen values. See [layout and uptime](docs/LAYOUT-AND-UPTIME.md).
+Kiosk startup inhibits OS idle/sleep for the process lifetime; application sessions
+have no scheduled expiration. Hardware faults/resource exhaustion still hold for
+operator intervention. The integrated physical Space-to-print run is now confirmed.

@@ -15,6 +15,7 @@ async function refresh() {
     const response = await fetchBounded('/api/kiosk/status');
     if (!response.ok) throw new Error('Disconnected');
     const state = await response.json();
+    if (state.session_id && state.session_id !== token) { disable(); window.location.reload(); return; }
     last = state.last_id;
     // Wait for server evidence of the accepted batch, not an old ready response.
     if (pending && (!state.ready || last !== beforeLast)) { pending = false; uncertain = false; }

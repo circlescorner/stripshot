@@ -66,8 +66,9 @@ uncertain shutters and submissions retain the existing no-retry recovery holds.
 ## Supervised final hardware check
 
 The component captures and actual photo printing have passed separately. The
-new combined kiosk-triggered live path has passed simulated-camera/mocked-spooler
-integration tests, but still needs one supervised physical run. With live printing
+combined kiosk-triggered physical path has now been confirmed by the operator
+(batch-3d64d259b8fb4e778541380db1fd34d9, DNP_DS40-14). Do not repeat it merely
+to re-establish the same result. For future intentionally requested runs: With live printing
 explicitly enabled, press Space once and confirm sixteen originals, one CUPS job,
 four centered strips, visible previews and return to ready. Do not repeat the
 long historical-card inventory. Preserve the batch manifest and job ID.
@@ -81,3 +82,6 @@ or a person who can use the logged-in desktop account. A dedicated restricted
 Ubuntu kiosk session, secured physical keyboard/ports and supervised recovery
 are still deployment work. No desktop policies or login services were changed.
 Do not claim unattended readiness or enable automatic boot/restart yet.
+
+Margin/scale settings and process-scoped keep-awake behavior are described in
+LAYOUT-AND-UPTIME.md. The application has no session expiration.

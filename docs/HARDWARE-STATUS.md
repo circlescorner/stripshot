@@ -63,3 +63,14 @@ was started by this development run. A simulated browser Space-trigger completed
 one 8+8 dry-run batch and ignored extra presses during capture. Mocked live-print
 integration checks one CUPS call and restart without reprint. Supervised combined
 physical qualification and OS kiosk lockdown remain pending.
+
+## Full kiosk hardware path confirmed
+
+Operator reported the Space/Go workflow worked entirely. Saved evidence identifies
+batch-3d64d259b8fb4e778541380db1fd34d9, status submitted, job DNP_DS40-14,
+with no active batch. This establishes the supervised integrated run, not
+indefinite endurance. No repeat of successful capture tests is needed.
+
+Operator margin/scale controls and scoped sleep inhibitors are now implemented.
+See LAYOUT-AND-UPTIME.md. New local defaults use slightly larger margins/95% photos.
+No new physical capture or print was issued for this change.

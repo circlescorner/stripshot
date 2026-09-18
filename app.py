@@ -73,7 +73,7 @@ def create_app(engine):
     @app.get('/api/kiosk/status')
     def kiosk_status():
         state = engine.status()
-        return jsonify(phase=state['phase'], counts=state['counts'],
+        return jsonify(session_id=guest_token, phase=state['phase'], counts=state['counts'],
                        ready=(state['capture_mode'] == 'software' and state['phase'] == 'watching'
                               and not state['current'] and not state['capture_busy']),
                        printing_enabled=state['printing_enabled'],
@@ -104,6 +104,12 @@ def create_app(engine):
         if action in ('reset', 'demo') and engine.status()['phase'] != 'watching':
             raise ValueError('Wait until the appliance is watching')
         engine.request(action).result(timeout=130)
+        return jsonify(ok=True)
+
+    @app.post('/api/layout')
+    def layout():
+        candidate = request.get_json()
+        engine.request('layout', candidate).result(timeout=130)
         return jsonify(ok=True)
 
     @app.post('/api/overlays/<int:index>')

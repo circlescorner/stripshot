@@ -2,4 +2,15 @@
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON="${STRIPSHOT_PYTHON:-$ROOT/.venv/bin/python}"
-exec "$PYTHON" "$ROOT/app.py" --kiosk "$@"
+COMMAND=("$PYTHON" "$ROOT/app.py" --kiosk "$@")
+if ! command -v systemd-inhibit >/dev/null; then
+  echo 'systemd-inhibit is required to prevent idle/sleep during kiosk operation.' >&2
+  exit 1
+fi
+COMMAND=(systemd-inhibit --no-ask-password --what=idle:sleep --mode=block
+  --who=Stripshot --why="Photo booth must remain active until stopped" "${COMMAND[@]}")
+if [[ "${XDG_CURRENT_DESKTOP:-}" == *GNOME* ]] && command -v gnome-session-inhibit >/dev/null; then
+  COMMAND=(gnome-session-inhibit --app-id=stripshot --reason="Photo booth running"
+    --inhibit=idle --inhibit=suspend "${COMMAND[@]}")
+fi
+exec "${COMMAND[@]}"
