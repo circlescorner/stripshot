@@ -14,17 +14,21 @@ from qualification import validate_software_printing
 from render import normalize_overlay, render_sheet, validate_jpeg, validate_layout
 from storage import atomic_bytes, save_json
 from software import SoftwareWorkflow
+from recovery import CameraRecovery
 
 LOG = logging.getLogger(__name__)
 
 
-class Engine(SoftwareWorkflow):
+class Engine(CameraRecovery, SoftwareWorkflow):
     def __init__(self, config, adapters):
         self.config = config
         self.software = config['camera_mode'] == 'software'
         if self.software:
             validate_software_printing(config['printer'], config['demo'])
         self.capture_futures = []
+        self.reconnect_queue = []
+        self.reconnect_label = None
+        self.reconnect_next_at = time.monotonic() + 10
         self.root = Path(config['data_dir'])
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = self.root / 'state.json'
@@ -102,11 +106,14 @@ class Engine(SoftwareWorkflow):
                     'previews': {c: w.preview_status() for c, w in self.workers.items()},
                     'capture_mode': self.config['camera_mode'],
                     'capture_busy': any(not f.done() for f in self.capture_futures),
+                    'reconnect_available': self.reconnect_available(),
                     'counts': {c: (sum(bool(s.get('downloaded_at')) for s in self.state['current']['shots'][c])
                                    if self.software and self.state['current'] else len(self.state['pending'][c]))
                                for c in ('A', 'B')},
                     'current': copy.deepcopy(self.state['current']),
-                    'last': copy.deepcopy(self.state['last']),
+                    'last': ({**copy.deepcopy(self.state['last']),
+                              'preview_available': (self.root / 'batches' / self.state['last']['id'] / 'preview.jpg').is_file()}
+                             if self.state['last'] else None),
                     'demo': self.config['demo'], 'printing_enabled': self.config['printer']['enabled']}
 
     def request(self, action, *args):
@@ -251,6 +258,8 @@ class Engine(SoftwareWorkflow):
             self.phase, self.error = 'watching', None
 
     def action(self, action, *args):
+        if action == 'reconnect':
+            return self.begin_reconnect()
         if action in ('capture', 'resume_capture', 'abandon_capture'):
             if not self.software:
                 raise ValueError('Select software capture mode first')
@@ -309,7 +318,7 @@ class Engine(SoftwareWorkflow):
             self.initialize()
             while not self.stop_event.is_set():
                 # A failed camera holds the whole appliance; its partner cannot print alone.
-                if any(w.failure for w in self.workers.values()) and self.phase not in ('print_uncertain', 'capture_held'):
+                if any(w.failure for w in self.workers.values()) and self.phase not in ('print_uncertain', 'capture_held', 'reconnecting'):
                     with self.lock:
                         if self.software and self.state['current'] and self.state['current']['stage'] == 'capturing':
                             self.state['current']['stage'] = 'capture_held'
@@ -321,6 +330,11 @@ class Engine(SoftwareWorkflow):
                         for c, w in self.workers.items():
                             if w.failure:
                                 self.camera_status[c] = w.failure
+                if (self.config.get('auto_reconnect', True) and not self.state['current']
+                        and time.monotonic() >= self.reconnect_next_at and self.reconnect_available()):
+                    self.begin_reconnect()
+                if self.phase == 'reconnecting':
+                    self.reconnect_step()
                 try:
                     action, args, future = self.commands.get_nowait()
                 except queue.Empty:

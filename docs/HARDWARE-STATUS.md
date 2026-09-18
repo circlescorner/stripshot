@@ -74,3 +74,13 @@ indefinite endurance. No repeat of successful capture tests is needed.
 Operator margin/scale controls and scoped sleep inhibitors are now implemented.
 See LAYOUT-AND-UPTIME.md. New local defaults use slightly larger margins/95% photos.
 No new physical capture or print was issued for this change.
+
+## Latest development update — wedding/recovery/ordering
+
+The historical outstanding production-print and integrated-run items above were
+resolved by DNP_DS40-13 and DNP_DS40-14 as recorded in the later sections. Remaining
+hardware gaps are native disconnect/reconnect, abrupt failure, endurance and final
+monitor/deployment setup. New branding, independent photo ordering, guarded serial
+reconnection and HTTP polling changes are documented in WEDDING-RECOVERY-UPDATE.md.
+These changes received software/browser checks only; no new physical test was run.
+DATA-MIGRATION.md plans a stopped, locked, checksum-verified migration from /tmp.

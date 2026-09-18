@@ -40,3 +40,8 @@ thermal limits, USB faults, full SD cards/disk, paper/ribbon and printer jams st
 exist. Files are never deleted automatically. The current evidence directory is
 under /tmp; preserve/migrate it to a permanent location before unattended deployment
 or reboot cleanup. No long-duration hardware endurance result is claimed.
+
+Photo ordering is now selectable independently for all sixteen positions in this
+same form, while preserving the preferred defaults. Every original must appear
+exactly once. See WEDDING-RECOVERY-UPDATE.md for persistence, recovery and HTTP
+changes, and DATA-MIGRATION.md for the safe maintenance-window migration plan.

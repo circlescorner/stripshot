@@ -28,10 +28,12 @@ def ordered(items):
 
 
 class GPhotoCamera:
-    def __init__(self, port, serial):
+    def __init__(self, port, serial, excluded_ports=()):
         self.port, self.serial = port, serial
+        self.excluded_ports = set(excluded_ports)
         self.camera = None
         self.preview_started = False
+        self.keepalive_next_at = 0
         self.stage = 'not opened'
         self.scan_trace = None
         self.scan_cancelled = lambda: False
@@ -41,6 +43,29 @@ class GPhotoCamera:
         self.stage = 'opening PTP session and reading serial'
         import gphoto2 as gp
         self.gp = gp
+        if self.port is None:
+            # Re-enumeration belongs to this new owning worker. Never touch a
+            # healthy worker's port, inventory the SD card, or trigger a shutter.
+            for model, port in gp.Camera.autodetect():
+                if port in self.excluded_ports or 'D3300' not in model:
+                    continue
+                candidate = GPhotoCamera(port, self.serial)
+                try:
+                    candidate.open()
+                except Exception:
+                    try:
+                        candidate.close()
+                    except Exception:
+                        # Retain the handle for worker cleanup. Never probe a
+                        # second port after an unconfirmed USB release.
+                        self.camera = candidate.camera
+                        raise
+                    continue
+                self.port, self.camera = candidate.port, candidate.camera
+                candidate.camera = None
+                self.stage = 'serial verified after reconnect'
+                return
+            raise RuntimeError('The expected camera serial is not connected; check USB and power')
         self.camera = gp.Camera()
         ports = gp.PortInfoList()
         ports.load()
@@ -211,6 +236,18 @@ class GPhotoCamera:
         if self._media() != 'Card':
             raise RuntimeError('Preview changed recording destination; stop taking photos')
         return data
+
+    def keepalive_preview(self):
+        # Only called between software commands. Restarting preview uses the
+        # existing Card-restore lifecycle; it never calls camera.capture().
+        if time.monotonic() < self.keepalive_next_at:
+            return self.preview()
+        self.keepalive_next_at = time.monotonic() + 5
+        if not self.camera.get_single_config('viewfinder').get_value():
+            if self._media() != 'Card':
+                raise RuntimeError('Recording destination changed away from Card')
+            return self.start_preview()
+        return self.preview()
 
     def close(self):
         if self.camera is not None:
@@ -436,7 +473,9 @@ class CameraWorker(threading.Thread):
                         raise
                     continue
                 if time.monotonic() >= next_preview:
-                    self.publish_frame(self.adapter.preview())
+                    method = (self.adapter.keepalive_preview if self.mode == 'software' and isinstance(self.adapter, GPhotoCamera)
+                              else self.adapter.preview)
+                    self.publish_frame(method())
                     next_preview = time.monotonic() + 1 / self.preview_fps
                 if self.mode == 'events':
                     item = self.adapter.event()

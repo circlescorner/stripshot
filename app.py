@@ -8,8 +8,9 @@ import os
 import signal
 import getpass
 import secrets
+import time
 from pathlib import Path
-from flask import Flask, abort, jsonify, render_template, request, send_file, Response
+from flask import Flask, abort, jsonify, render_template, request, send_file, Response, g
 from werkzeug.exceptions import HTTPException
 from batch import Engine
 from camera import DemoCamera, discover, live_cameras
@@ -37,7 +38,8 @@ def create_app(engine):
 
     @app.before_request
     def protect_actions():
-        public = (request.path in ('/kiosk', '/api/kiosk/status', '/api/capture')
+        g.request_started = time.monotonic()
+        public = (request.path in ('/kiosk', '/api/kiosk/status', '/api/capture', '/favicon.ico')
                   or request.path.startswith(('/static/', '/view/', '/api/preview/'))
                   or request.path == '/' and kiosk_mode)
         if kiosk_mode and not public and not operator_authenticated():
@@ -53,6 +55,9 @@ def create_app(engine):
 
     @app.after_request
     def headers(response):
+        elapsed = time.monotonic() - g.request_started
+        if elapsed >= 1:
+            app.logger.warning('Slow request %s %s: %.3fs (%s)', request.method, request.path, elapsed, response.status_code)
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
@@ -61,8 +66,12 @@ def create_app(engine):
     @app.errorhandler(Exception)
     def error(exc):
         code = exc.code if isinstance(exc, HTTPException) else 400 if isinstance(exc, (ValueError, RuntimeError)) else 500
-        app.logger.warning('Request failed: %s', exc)
+        app.logger.warning('Request failed %s %s: %s', request.method, request.path, exc)
         return jsonify(error=str(exc)), code
+
+    @app.get('/favicon.ico')
+    def favicon():
+        return Response(status=204)
 
     @app.get('/kiosk')
     def kiosk():
@@ -95,11 +104,11 @@ def create_app(engine):
 
     @app.get('/api/printer')
     def printer():
-        return jsonify(status=engine.printer.status())
+        return jsonify(status=engine.printer.cached_status())
 
     @app.post('/api/<action>')
     def action(action):
-        if action not in ('reset', 'acknowledge', 'retry', 'demo', 'capture', 'resume_capture', 'abandon_capture'):
+        if action not in ('reset', 'acknowledge', 'retry', 'demo', 'capture', 'resume_capture', 'abandon_capture', 'reconnect'):
             abort(404)
         if action in ('reset', 'demo') and engine.status()['phase'] != 'watching':
             raise ValueError('Wait until the appliance is watching')

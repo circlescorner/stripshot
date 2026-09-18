@@ -68,7 +68,7 @@ class SoftwareWorkflow:
             batch = self.state['current']
             if action == 'resume_capture':
                 if any(w.failure for w in self.workers.values()):
-                    raise ValueError('Check the cameras and restart before resuming')
+                    raise ValueError('Reconnect the cameras or restart before resuming')
                 for shots in batch['shots'].values():
                     for shot in shots:
                         if shot and 'identity' not in shot:

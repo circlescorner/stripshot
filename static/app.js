@@ -5,6 +5,7 @@ let busy = false;
 let lastPreview = '';
 let actionError = '';
 let layoutLoaded = false;
+let refreshing = false;
 async function boundedFetch(url, options = {}, timeoutMs = 5000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -12,6 +13,7 @@ async function boundedFetch(url, options = {}, timeoutMs = 5000) {
   finally { clearTimeout(timeout); }
 }
 const descriptions = {
+  reconnecting: ['Reconnecting cameras', 'Verifying camera identities and restoring previews. No shutter is issued.'],
   capturing: ['Taking your photos', 'Eight paired rounds, with previews between shots.'],
   capture_held: ['Capture paused', 'Review the saved shutter records before resuming or abandoning.'],
   starting: ['Starting up', 'Reading the SD-card baselines. Wait before taking photos.'],
@@ -23,6 +25,8 @@ const descriptions = {
   error: ['Needs your attention', 'Collection or preparation is paused.'],
 };
 async function refresh() {
+  if (refreshing) return;
+  refreshing = true;
   try {
     const response = await boundedFetch('/api/status');
     if (!response.ok) throw new Error('Dashboard status is unavailable');
@@ -30,6 +34,10 @@ async function refresh() {
     if (!layoutLoaded && state.layout) {
       fillLayout(state.layout);
       layoutLoaded = true;
+    }
+    if (state.layout) {
+      const order = state.layout.photo_order ?? Array.from({length:4}, (_,i) => [`A${i*2+1}`,`B${i*2+1}`,`A${i*2+2}`,`B${i*2+2}`]);
+      order.forEach((strip,i) => { $('saved-order-'+(i+1)).textContent = strip.join(' · '); });
     }
     $('uptime').textContent = `Running for ${Math.floor(state.uptime_seconds / 3600)}h ${Math.floor(state.uptime_seconds % 3600 / 60)}m · No application session expiry`;
     const [title, detail] = descriptions[state.phase] || ['Paused', 'Check the appliance.'];
@@ -46,6 +54,8 @@ async function refresh() {
     const remaining = Math.max(0, 8-state.counts.A) + Math.max(0, 8-state.counts.B);
     $('waiting').textContent = state.capture_mode === 'software' ? (state.current ? `${state.counts.A + state.counts.B} exact photos downloaded for this batch.` : 'Ready for a new 16-photo batch.') : state.current ? 'Processing 16 photos · new arrivals wait for the next batch.' : `Waiting for ${remaining} photographs.`;
     if ($('capture')) $('capture').disabled = busy || state.phase !== 'watching' || Boolean(state.current);
+    $('reconnect-cameras').hidden = !state.reconnect_available;
+    $('reconnect-cameras').disabled = busy || state.capture_busy;
     $('resume-capture').hidden = state.phase !== 'capture_held';
     $('abandon-capture').hidden = state.phase !== 'capture_held';
     $('resume-capture').disabled = busy || state.capture_busy;
@@ -66,7 +76,8 @@ async function refresh() {
       const labels = {dry_run:'Your sheet is ready.', submitted:'One sheet submitted.', acknowledged_without_retry:'Print acknowledged.'};
       $('last-title').textContent = labels[state.last.status] || 'Batch complete.';
       $('last-detail').textContent = `16 photos · ${state.last.job_id || (state.last.status === 'dry_run' ? 'Dry run — no paper used' : 'No automatic reprint')}`;
-      if (lastPreview !== state.last.id) {
+      if (!state.last.preview_available) { $('last-preview').hidden = true; lastPreview = ''; }
+      if (state.last.preview_available && lastPreview !== state.last.id) {
         lastPreview = state.last.id;
         $('last-preview').src = `/batches/${encodeURIComponent(lastPreview)}/preview.jpg`;
         $('last-preview').hidden = false;
@@ -78,7 +89,7 @@ async function refresh() {
     $('reset').disabled = true;
     if ($('capture')) $('capture').disabled = true;
     if ($('demo')) $('demo').disabled = true;
-  }
+  } finally { refreshing = false; }
 }
 async function post(url, body, json = false) {
   busy = true; actionError = '';
@@ -97,6 +108,7 @@ async function post(url, body, json = false) {
 }
 $('reset').onclick = () => { if (confirm('Ignore the pending photos and count the next 8 from each camera? No files will be deleted.')) post('/api/reset'); };
 if ($('capture')) $('capture').onclick = () => post('/api/capture');
+$('reconnect-cameras').onclick = () => post('/api/reconnect');
 $('resume-capture').onclick = () => post('/api/resume_capture');
 $('abandon-capture').onclick = () => { if (confirm('Abandon this incomplete batch? All SD files, downloaded photos and shutter records will be kept.')) post('/api/abandon_capture'); };
 $('retry').onclick = () => post('/api/retry');
@@ -124,6 +136,10 @@ window.StripshotSpace.bind(document, () => {
 function fillLayout(layout) {
   for (const name of ['margin','top','bottom','gap']) $('layout-' + name).value = (layout[name] * 25.4 / 300).toFixed(2);
   $('layout-scale').value = layout.photo_scale ?? 100;
+  if (layout.photo_order || !layoutLoaded) {
+    const order = layout.photo_order ?? Array.from({length:4}, (_,i) => [`A${i*2+1}`,`B${i*2+1}`,`A${i*2+2}`,`B${i*2+2}`]);
+    order.forEach((strip,i) => strip.forEach((photo,j) => { $('order-'+(i+1)+'-'+(j+1)).value = photo; }));
+  }
 }
 $('layout-larger').onclick = () => {
   fillLayout({margin:36,top:36,bottom:180,gap:24,photo_scale:95});
@@ -131,10 +147,14 @@ $('layout-larger').onclick = () => {
 };
 $('layout-form').onsubmit = async event => {
   event.preventDefault();
+  $('layout-message').textContent = '';
   const layout = {};
   for (const name of ['margin','top','bottom','gap']) layout[name] = Math.round(Number($('layout-' + name).value) * 300 / 25.4);
+  layout.photo_order = Array.from({length:4}, (_,i) => Array.from({length:4}, (_,j) => $('order-'+(i+1)+'-'+(j+1)).value));
   layout.photo_scale = Number($('layout-scale').value);
   if (await post('/api/layout', JSON.stringify(layout), true)) {
     $('layout-message').textContent = 'Saved for future batches and restarts. Current batch unchanged.';
+  } else {
+    $('layout-message').textContent = 'Not saved. ' + actionError;
   }
 };

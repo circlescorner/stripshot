@@ -6,6 +6,7 @@ from storage import atomic_bytes
 
 STRIP = (600, 1800)
 SHEET = (2400, 1800)
+DEFAULT_PHOTO_ORDER = [[f"{c}{n}" for n in (i * 2 + 1, i * 2 + 2) for c in ("A", "B")] for i in range(4)]
 
 
 def validate_strip_offsets(offsets):
@@ -17,10 +18,18 @@ def validate_strip_offsets(offsets):
 
 def validate_layout(layout):
     required = {'margin', 'gap', 'top', 'bottom'}
-    if not isinstance(layout, dict) or not required <= set(layout) or set(layout) - required - {'photo_scale'}:
+    if not isinstance(layout, dict) or not required <= set(layout) or set(layout) - required - {'photo_scale', 'photo_order'}:
         raise ValueError('Layout needs margin, gap, top, bottom and optional photo_scale')
     if any(type(layout[k]) is not int or layout[k] < 0 for k in required):
         raise ValueError('Margins and gaps must be nonnegative integer pixels')
+    order = layout.get('photo_order', DEFAULT_PHOTO_ORDER)
+    if (not isinstance(order, list) or len(order) != 4
+            or any(not isinstance(strip, list) or len(strip) != 4 for strip in order)):
+        raise ValueError('Photo order needs four strips with four photos each')
+    flattened = [item for strip in order for item in strip]
+    expected = {f'{c}{n}' for c in ('A', 'B') for n in range(1, 9)}
+    if any(not isinstance(item, str) for item in flattened) or set(flattened) != expected:
+        raise ValueError('Photo order must use A1–A8 and B1–B8 exactly once')
     scale = layout.get('photo_scale', 100)
     if type(scale) is not int or not 50 <= scale <= 100:
         raise ValueError('Photo scale must be an integer from 50 to 100 percent')
@@ -71,7 +80,8 @@ def render_sheet(photos, overlays, layout, output, strip_offsets_px=None):
     height = (1800 - layout['top'] - layout['bottom'] - 3 * layout['gap']) // 4
     for index in range(4):
         strip = Image.new('RGBA', STRIP, 'white')
-        ordered = [photos[c][n] for n in (index * 2, index * 2 + 1) for c in ('A', 'B')]
+        ordered = [photos[item[0]][int(item[1:]) - 1]
+                   for item in layout.get('photo_order', DEFAULT_PHOTO_ORDER)[index]]
         for row, path in enumerate(ordered):
             with Image.open(path) as img:
                 img.seek(0)

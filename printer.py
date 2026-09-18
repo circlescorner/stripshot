@@ -2,11 +2,17 @@
 import os
 import re
 import subprocess
+import threading
+import time
 
 
 class Printer:
     def __init__(self, config):
         self.config = config
+        self._status_lock = threading.Lock()
+        self._status_value = 'Checking printer status…'
+        self._status_next = 0
+        self._status_running = False
 
     def submit(self, sheet, batch_id):
         if not self.config['enabled']:
@@ -21,6 +27,26 @@ class Printer:
         if result.returncode or not match:
             raise RuntimeError('CUPS submission uncertain: ' + (result.stderr or result.stdout)[:500])
         return {'status': 'submitted', 'job_id': match.group(1)}
+
+    def cached_status(self):
+        """One bounded CUPS read shared by all dashboards; never block HTTP."""
+        if not self.config['enabled']:
+            return 'Dry run — no physical print jobs'
+        with self._status_lock:
+            if not self._status_running and time.monotonic() >= self._status_next:
+                self._status_running = True
+                threading.Thread(target=self._refresh_status, name='printer-status', daemon=True).start()
+            return self._status_value
+
+    def _refresh_status(self):
+        try:
+            value = self.status()
+        except Exception as exc:
+            value = 'Printer status unavailable: ' + str(exc)
+        with self._status_lock:
+            self._status_value = value
+            self._status_next = time.monotonic() + 15
+            self._status_running = False
 
     def status(self):
         if not self.config['enabled']:

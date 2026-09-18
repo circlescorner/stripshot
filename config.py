@@ -21,6 +21,9 @@ def load_config(path):
     cfg.setdefault('port', 8080)
     cfg.setdefault('preview_fps', 0)
     cfg.setdefault('kiosk_mode', False)
+    cfg.setdefault('auto_reconnect', True)
+    if type(cfg['auto_reconnect']) is not bool:
+        raise ValueError('auto_reconnect must be true or false')
     if type(cfg['kiosk_mode']) is not bool:
         raise ValueError('kiosk_mode must be true or false')
     if cfg['kiosk_mode'] and (cfg['camera_mode'] != 'software' or cfg['host'] not in ('127.0.0.1', 'localhost')):

@@ -29,7 +29,7 @@ async function refresh() {
       $('title').textContent = 'Please ask the attendant';
       $('detail').textContent = 'We are checking whether your session started.';
     } else if (state.phase === 'watching' && !posting && !pending) {
-      $('title').textContent = last ? 'Ready for more?'  : 'Ready for your photos?';
+      $('title').textContent = 'Have fun. Be wierd.';
       $('detail').textContent = last && state.printing_enabled && state.last_status === 'submitted' ? 'Your photos were sent to the printer. Collect your strips below.' : 'Eight photos. Two cameras. Four keepsakes.';
     } else if (busy || posting || pending) {
       $('title').textContent = state.phase === 'capturing' ? 'Look at the cameras!' : 'Making your keepsakes';

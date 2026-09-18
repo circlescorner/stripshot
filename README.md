@@ -236,3 +236,11 @@ batches retain their frozen values. See [layout and uptime](docs/LAYOUT-AND-UPTI
 Kiosk startup inhibits OS idle/sleep for the process lifetime; application sessions
 have no scheduled expiration. Hardware faults/resource exhaustion still hold for
 operator intervention. The integrated physical Space-to-print run is now confirmed.
+
+### Wedding setup and camera recovery
+
+Guest/monitor branding, independently selectable strip positions, serial-verified
+reconnect, and nonblocking dashboard polling are described in
+[the update notes](docs/WEDDING-RECOVERY-UPDATE.md). Preferred alternating A/B order
+remains the default; duplicate/omitted selections are rejected. Before unattended
+deployment, follow the [stopped-state migration plan](docs/DATA-MIGRATION.md).

@@ -19,9 +19,11 @@ async function refresh() {
     if (previous) URL.revokeObjectURL(previous);
     lastGood = performance.now();
     frame.hidden = false;
+    document.getElementById('wedding').hidden = false;
     message.hidden = true;
   } catch {
     frame.hidden = true;
+    document.getElementById('wedding').hidden = true;
     message.hidden = false;
     message.textContent = `Camera ${label} preview unavailable — check the operator dashboard`;
   } finally {
@@ -32,6 +34,7 @@ async function refresh() {
 setInterval(() => {
   if (performance.now() - lastGood > 2200) {
     frame.hidden = true;
+    document.getElementById('wedding').hidden = true;
     message.hidden = false;
   }
 }, 250);
