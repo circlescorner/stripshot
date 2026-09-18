@@ -209,7 +209,8 @@ class Engine(SoftwareWorkflow):
             self.phase = 'rendering'
         overlays = [directory / p if p else None for p in batch['overlays']]
         sheet = directory / 'sheet.png'
-        render_sheet(photos, overlays, batch['layout'], sheet)
+        render_sheet(photos, overlays, batch['layout'], sheet,
+                     strip_offsets_px=batch['printer'].get('strip_offsets_px', [0, 0, 0, 0]))
         with self.lock:
             if any(w.failure for w in self.workers.values()):
                 raise RuntimeError('Camera failed during preparation; restart after checking connections')

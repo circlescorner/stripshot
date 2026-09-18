@@ -15,6 +15,7 @@ def load_config(path):
     cfg['printer'].setdefault('enabled', False)
     cfg['printer'].setdefault('queue', '')
     cfg['printer'].setdefault('options', {})
+    cfg['printer'].setdefault('strip_offsets_px', [0, 0, 0, 0])
     cfg.setdefault('layout', {'margin': 24, 'gap': 18, 'top': 24, 'bottom': 180})
     cfg.setdefault('host', '127.0.0.1')
     cfg.setdefault('port', 8080)
@@ -49,6 +50,7 @@ def load_config(path):
         raise ValueError('Printer options must be simple key/value pairs')
     if any(k.lower() in ('copies', 'number-up', 'page-ranges') for k in options):
         raise ValueError('Copies, number-up and page-ranges cannot be overridden')
-    from render import validate_layout
+    from render import validate_layout, validate_strip_offsets
     validate_layout(cfg['layout'])
+    validate_strip_offsets(cfg['printer']['strip_offsets_px'])
     return cfg

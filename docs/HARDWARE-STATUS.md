@@ -41,10 +41,14 @@ This acceptance applies to the synthetic target, not yet to production artwork.
 
 ## Outstanding
 
-Application calibration integration and separately authorized production printing;
+Separately authorized production printing;
 final monitor placement/usability; native disconnect and abrupt power loss.
 Subprocess SIGKILL tests use simulated cameras and do not qualify native USB.
 Uncertain shutters remain held, never automatically replaced.
 
 Application printing is still hard-disabled. No further print is authorized.
 No SD deletion or service changes. No unattended-readiness claim. PR stays draft.
+
+Accepted calibration is now integrated as opt-in frozen batch settings. Existing
+originals were hash-checked and re-rendered without capture or physical printing.
+The operator explicitly confirmed the existing down-strip photo order; it is unchanged.

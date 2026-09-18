@@ -190,3 +190,32 @@ Tests cover exact batches, uploads/layout, simulated paired capture, repeated
 batches, intent durability, uncertain-shutter holds, restart without extra shutters,
 exact-file recovery, preview recovery, MPO decoding, borrowed buffer lifetime,
 scan cancellation, and duplicate-print protections. They do not qualify hardware.
+
+## Accepted DS40 centering
+
+The operator accepted the corrected synthetic target on the tested DNP_DS40.
+Use `config.ds40.software.example.json` for its per-strip offsets and tested
+media/orientation options; fill in the camera serials and data directory.
+Printing is still disabled. Generic configurations default to zero offsets.
+
+For the qualification launcher, add `--ds40-calibration` to use the accepted
+profile for new dry-run batches (including when reusing an evidence directory):
+
+```bash
+bash test-two-cameras --data-dir /tmp/stripshot-two-cameras-hgc2l_yp --ds40-calibration
+```
+
+This flag applies for that launch; include it again on subsequent launches for
+new batches. Existing held batches retain their own frozen settings, even if the
+profile or configuration changes. Old manifests without offsets render as before.
+Do not run this alongside another camera-owning process.
+
+The correction moves the complete photo-plus-overlay strip by +20, +15, +6, -2
+pixels, clips within each strip and adds white at the exposed edge. Uploaded art
+and original photos remain untouched. The dashboard preview shows the same
+corrected sheet that the print path would use. Photo order remains A1,B1,A2,B2
+down strip 1, A3,B3,A4,B4 down strip 2, and so on, as the operator requested.
+
+Software-mode print gates and durable print-intent protection remain intact.
+A production sheet has been rendered from existing originals without new
+captures, but has not been physically printed. No unattended readiness claim.

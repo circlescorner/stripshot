@@ -8,6 +8,13 @@ STRIP = (600, 1800)
 SHEET = (2400, 1800)
 
 
+def validate_strip_offsets(offsets):
+    if not isinstance(offsets, list) or len(offsets) != 4 or any(
+        type(value) is not int or abs(value) > 60 for value in offsets
+    ):
+        raise ValueError('strip_offsets_px must contain four integers between -60 and 60')
+
+
 def validate_layout(layout):
     if set(layout) != {'margin', 'gap', 'top', 'bottom'} or any(
         type(v) is not int or v < 0 for v in layout.values()
@@ -46,8 +53,10 @@ def normalize_overlay(content):
         return buf.getvalue()
 
 
-def render_sheet(photos, overlays, layout, output):
+def render_sheet(photos, overlays, layout, output, strip_offsets_px=None):
     validate_layout(layout)
+    offsets = [0, 0, 0, 0] if strip_offsets_px is None else strip_offsets_px
+    validate_strip_offsets(offsets)
     if set(photos) != {'A', 'B'} or any(len(photos[c]) != 8 for c in photos):
         raise ValueError('Exactly eight JPEGs per camera are required')
     for files in photos.values():
@@ -70,7 +79,11 @@ def render_sheet(photos, overlays, layout, output):
                 if overlay.size != STRIP:
                     raise ValueError('Overlay has incorrect dimensions')
                 strip = Image.alpha_composite(strip, overlay.convert('RGBA'))
-        sheet.paste(strip.convert('RGB'), (index * 600, 0))
+        # Translate photos and artwork together, clipped within this strip.
+        # Never let calibration spill content into its neighbor.
+        calibrated = Image.new('RGB', STRIP, 'white')
+        calibrated.paste(strip.convert('RGB'), (offsets[index], 0))
+        sheet.paste(calibrated, (index * 600, 0))
     buf = io.BytesIO()
     sheet.save(buf, format='PNG', dpi=(300, 300))
     atomic_bytes(output, buf.getvalue())

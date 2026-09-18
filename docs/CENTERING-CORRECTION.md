@@ -26,7 +26,7 @@ orientation-requested=4, number-up=1, copies=1. Calibration is specific to these
 settings, the tested printer/media, and the 2400x1800 source sheet.
 
 The accepted values are saved in ds40-accepted-calibration.json as evidence,
-not an active application configuration. Application rendering has not adopted
-the correction. Production artwork/photos and repeatability remain unqualified.
+not an active application configuration. Application rendering now supports the correction through an explicit disabled
+DS40 profile; new batches freeze it and old batches retain their original settings. Production artwork/photos and repeatability remain unqualified.
 Application printing remains disabled; acceptance of centering did not authorize
 removing that gate, further prints, or merging the draft PR.

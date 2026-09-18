@@ -44,7 +44,7 @@
     }
   ],
   "operator_visually_accepted": true,
-  "application_integration": "not applied",
+  "application_integration": "Optional printer.strip_offsets_px; frozen per batch; config.ds40.software.example.json and --ds40-calibration launcher flag",
   "printing_enabled": false,
   "options": {
     "PageSize": "w432h576-div4",

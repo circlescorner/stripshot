@@ -24,6 +24,8 @@ def main():
     parser.add_argument('--data-dir', type=Path, help='Reuse the printed evidence directory to test restart recovery')
     parser.add_argument('--port', type=int, default=8090)
     parser.add_argument('--demo', action='store_true')
+    parser.add_argument('--ds40-calibration', action='store_true',
+                        help='Use the accepted DS40 offsets for new dry-run batches')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
     evidence = (args.data_dir or Path(tempfile.mkdtemp(prefix='stripshot-two-cameras-'))).resolve()
@@ -57,6 +59,15 @@ def main():
         if Path(config['data_dir']) != evidence:
             raise RuntimeError('Saved data directory must match the locked evidence directory')
         config['port'] = args.port
+        if args.ds40_calibration:
+            # Existing batches retain their frozen printer settings.
+            profile = json.loads((ROOT / 'config.ds40.software.example.json').read_text())
+            config['printer'] = profile['printer']
+            if config['printer']['enabled']:
+                raise RuntimeError('Qualification profile must keep printing disabled')
+            from render import validate_strip_offsets
+            validate_strip_offsets(config['printer']['strip_offsets_px'])
+            print('DS40 centering for new batches: ' + str(config['printer']['strip_offsets_px']), flush=True)
         by_serial = {item['serial']: item for item in found}
         adapters = {}
         for c in ('A', 'B'):
