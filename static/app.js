@@ -5,6 +5,8 @@ let busy = false;
 let lastPreview = '';
 let actionError = '';
 const descriptions = {
+  capturing: ['Taking your photos', 'Eight paired rounds, with previews between shots.'],
+  capture_held: ['Capture paused', 'Review the saved shutter records before resuming or abandoning.'],
   starting: ['Starting up', 'Reading the SD-card baselines. Wait before taking photos.'],
   watching: ['Ready for the moment', 'Watching for eight new JPEGs from each camera.'],
   downloading: ['Collecting the originals', 'The full 16-photo batch is saved. Downloading now.'],
@@ -20,23 +22,34 @@ async function refresh() {
     const state = await response.json();
     const [title, detail] = descriptions[state.phase] || ['Paused', 'Check the appliance.'];
     $('phase').textContent = title;
-    $('phase-detail').textContent = detail;
+    $('phase-detail').textContent = state.capture_mode === 'software' && state.phase === 'watching' ? 'Ready to take eight photos on each camera.' : state.capture_mode === 'software' && state.phase === 'starting' ? 'Opening camera sessions and previews.' : detail;
     $('mode').textContent = state.demo ? 'DEMO / NO PRINTING' : state.printing_enabled ? 'LIVE / PRINT ENABLED' : 'LIVE / DRY RUN';
     for (const c of ['A', 'B']) {
-      $('camera-' + c).textContent = state.cameras[c];
+      $('camera-' + c).textContent = state.cameras[c] + (state.previews?.[c]?.recent_fps ? ` · ${state.previews[c].recent_fps} preview FPS` : '');
       $('count-' + c).replaceChildren(document.createTextNode(state.counts[c] + ' '));
       const small = document.createElement('small'); small.textContent = '/ 8';
       $('count-' + c).append(small);
       $('progress-' + c).value = Math.min(state.counts[c], 8);
     }
     const remaining = Math.max(0, 8-state.counts.A) + Math.max(0, 8-state.counts.B);
-    $('waiting').textContent = state.current ? 'Processing 16 photos · new arrivals wait for the next batch.' : `Waiting for ${remaining} photographs.`;
+    $('waiting').textContent = state.capture_mode === 'software' ? (state.current ? `${state.counts.A + state.counts.B} exact photos downloaded for this batch.` : 'Ready for a new 16-photo batch.') : state.current ? 'Processing 16 photos · new arrivals wait for the next batch.' : `Waiting for ${remaining} photographs.`;
+    if ($('capture')) $('capture').disabled = busy || state.phase !== 'watching' || Boolean(state.current);
+    $('resume-capture').hidden = state.phase !== 'capture_held';
+    $('abandon-capture').hidden = state.phase !== 'capture_held';
+    $('resume-capture').disabled = busy || state.capture_busy;
+    $('abandon-capture').disabled = busy || state.capture_busy;
+    $('capture-records').hidden = state.phase !== 'capture_held';
+    if (state.current?.shots) {
+      $('capture-records').textContent = ['A', 'B'].map(c => c + ': ' + state.current.shots[c].map((s, i) =>
+        `${i + 1} ${s.downloaded_at ? 'downloaded' : s.identity ? 'identified' : s.intent_at ? 'uncertain — no replacement' : 'not issued'}`
+      ).join(', ')).join(' / ');
+    }
     $('reset').disabled = busy || state.phase !== 'watching' || Boolean(state.current);
     if ($('demo')) $('demo').disabled = busy || state.phase !== 'watching' || Boolean(state.current);
     $('retry').hidden = !(state.phase === 'error' && state.current?.stage === 'preparing');
     $('acknowledge').hidden = state.phase !== 'print_uncertain';
     $('notice').hidden = !(state.error || actionError);
-    $('notice').textContent = state.error || actionError;
+    $('notice').textContent = actionError || state.error;
     if (state.last) {
       const labels = {dry_run:'Your sheet is ready.', submitted:'One sheet submitted.', acknowledged_without_retry:'Print acknowledged.'};
       $('last-title').textContent = labels[state.last.status] || 'Batch complete.';
@@ -51,6 +64,7 @@ async function refresh() {
     $('phase').textContent = 'Dashboard disconnected';
     $('phase-detail').textContent = 'Reconnecting… Check the running application if this persists.';
     $('reset').disabled = true;
+    if ($('capture')) $('capture').disabled = true;
     if ($('demo')) $('demo').disabled = true;
   }
 }
@@ -70,6 +84,9 @@ async function post(url, body) {
   }
 }
 $('reset').onclick = () => { if (confirm('Ignore the pending photos and count the next 8 from each camera? No files will be deleted.')) post('/api/reset'); };
+if ($('capture')) $('capture').onclick = () => post('/api/capture');
+$('resume-capture').onclick = () => post('/api/resume_capture');
+$('abandon-capture').onclick = () => { if (confirm('Abandon this incomplete batch? All SD files, downloaded photos and shutter records will be kept.')) post('/api/abandon_capture'); };
 $('retry').onclick = () => post('/api/retry');
 $('acknowledge').onclick = () => { if (confirm('Have you checked CUPS and the physical printer? Continue without submitting this batch again?')) post('/api/acknowledge'); };
 if ($('demo')) $('demo').onclick = () => post('/api/demo');

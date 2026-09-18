@@ -12,11 +12,13 @@ from batch import Engine
 from camera import DemoCamera, discover, live_cameras
 from config import load_config
 from storage import ProcessLock
+from preview import register_preview
 
 
 def create_app(engine):
     app = Flask(__name__)
     app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
+    register_preview(app, engine.workers, engine.config['demo'])
     token = secrets.token_urlsafe(32)
 
     @app.before_request
@@ -28,7 +30,7 @@ def create_app(engine):
     def headers(response):
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+        response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
         return response
 
     @app.errorhandler(Exception)
@@ -39,7 +41,9 @@ def create_app(engine):
 
     @app.get('/')
     def index():
-        return render_template('index.html', token=token, demo=engine.config['demo'])
+        return render_template('index.html', token=token, demo=engine.config['demo'],
+                               previews=bool(engine.config.get('preview_fps', 0)),
+                               software=engine.config['camera_mode'] == 'software')
 
     @app.get('/api/status')
     def status():
@@ -51,7 +55,7 @@ def create_app(engine):
 
     @app.post('/api/<action>')
     def action(action):
-        if action not in ('reset', 'acknowledge', 'retry', 'demo'):
+        if action not in ('reset', 'acknowledge', 'retry', 'demo', 'capture', 'resume_capture', 'abandon_capture'):
             abort(404)
         if action in ('reset', 'demo') and engine.status()['phase'] != 'watching':
             raise ValueError('Wait until the appliance is watching')

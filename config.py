@@ -18,8 +18,13 @@ def load_config(path):
     cfg.setdefault('layout', {'margin': 24, 'gap': 18, 'top': 24, 'bottom': 180})
     cfg.setdefault('host', '127.0.0.1')
     cfg.setdefault('port', 8080)
-    if cfg['camera_mode'] not in ('events', 'poll'):
-        raise ValueError('camera_mode must be events or poll')
+    cfg.setdefault('preview_fps', 0)
+    if type(cfg['preview_fps']) not in (int, float) or not 0 <= cfg['preview_fps'] <= 5:
+        raise ValueError('preview_fps must be between 0 (disabled) and 5')
+    if 0 < cfg['preview_fps'] < 1:
+        raise ValueError('Enabled preview_fps must be at least 1')
+    if cfg['camera_mode'] not in ('events', 'poll', 'software'):
+        raise ValueError('camera_mode must be events, poll or software')
     if not 0.25 <= cfg['poll_seconds'] <= 60:
         raise ValueError('poll_seconds must be between 0.25 and 60')
     if not cfg['demo']:
@@ -29,6 +34,8 @@ def load_config(path):
         serials = [cameras[c].get('serial', '').strip() for c in ('A', 'B')]
         if not all(serials) or serials[0] == serials[1]:
             raise ValueError('Two different camera serial numbers are required')
+    if cfg['camera_mode'] == 'software' and cfg['printer']['enabled']:
+        raise ValueError('Software capture printing is disabled pending hardware qualification')
     if cfg['demo'] and cfg['printer']['enabled']:
         raise ValueError('Demo mode cannot enable physical printing')
     if cfg['printer']['enabled'] and not cfg['printer']['queue']:

@@ -3,5 +3,8 @@
   "demo": true,
   "host": "127.0.0.1",
   "port": 8080,
-  "printer": {"enabled": false}
+  "printer": {
+    "enabled": false
+  },
+  "preview_fps": 3
 }

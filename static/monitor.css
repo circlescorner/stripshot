@@ -1,0 +1,5 @@
+html,body{margin:0;width:100%;height:100%;background:#080a0b;color:#fff;font-family:system-ui,sans-serif;overflow:hidden}
+body{display:grid;place-items:center}#frame{width:100%;height:100%;object-fit:contain}#frame[hidden]{display:none}
+#message{position:absolute;padding:24px;text-align:center;background:#080a0b;font-size:clamp(20px,3vw,36px)}
+footer{position:absolute;bottom:12px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:center;font-size:14px;text-shadow:0 1px 3px #000}
+button{background:#182126bb;color:#fff;border:1px solid #64737c;border-radius:6px;padding:8px 12px;cursor:pointer}

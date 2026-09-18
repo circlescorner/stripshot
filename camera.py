@@ -1,4 +1,7 @@
-"""Read-only camera adapters. Each live PTP connection has one owning thread."""
+"""Camera adapters. Each live PTP connection has one owning thread.
+
+USB previews and explicit software shutters share the same owning thread.
+"""
 import io
 import json
 import posixpath
@@ -6,6 +9,7 @@ import queue
 import threading
 import time
 from concurrent.futures import Future
+from collections import deque
 from pathlib import Path
 from PIL import Image, ImageDraw
 from storage import atomic_bytes
@@ -27,8 +31,14 @@ class GPhotoCamera:
     def __init__(self, port, serial):
         self.port, self.serial = port, serial
         self.camera = None
+        self.preview_started = False
+        self.stage = 'not opened'
+        self.scan_trace = None
+        self.scan_cancelled = lambda: False
+        self.scan_progress = None
 
     def open(self):
+        self.stage = 'opening PTP session and reading serial'
         import gphoto2 as gp
         self.gp = gp
         self.camera = gp.Camera()
@@ -40,6 +50,55 @@ class GPhotoCamera:
         if actual != self.serial:
             raise RuntimeError(f'Camera serial mismatch on {self.port}: expected {self.serial}, got {actual}')
 
+    def _capture_once(self, record):
+        if self.scan_cancelled():
+            raise RuntimeError('Probe cancelled before capture')
+        self.stage = 'ending live view for one software capture'
+        self._set('viewfinder', 0)
+        if self.camera.get_single_config('viewfinder').get_value():
+            raise RuntimeError('Live view did not stop')
+        self._set('recordingmedia', 'Card')
+        previous = self.camera.get_single_config('capturetarget').get_value()
+        try:
+            self._set('capturetarget', 'Memory card')
+            if self._media() != 'Card' or self.camera.get_single_config('capturetarget').get_value() != 'Memory card':
+                raise RuntimeError('Card capture destination not verified')
+            if self.scan_cancelled():
+                raise RuntimeError('Probe cancelled before capture')
+            # Persist before triggering. Any failure after this point is uncertain:
+            # no automatic retry, even if no returned path was received.
+            record('capture_intent', {'count': 1, 'target': 'Memory card'})
+            self.stage = 'issuing ONE software capture; no automatic retry'
+            path = self.camera.capture(self.gp.GP_CAPTURE_IMAGE)
+            captured = {'folder': path.folder, 'name': path.name}
+            record('capture_returned', captured)
+            if self._media() != 'Card':
+                raise RuntimeError('Recording media changed during capture')
+        finally:
+            self._set('capturetarget', previous)
+        return captured
+
+    def software_shot(self, known, destination, record, preview_enabled):
+        from render import validate_jpeg
+        import hashlib
+        captured = self._capture_once(record)
+        if not captured['name'].lower().endswith(('.jpg', '.jpeg')):
+            raise RuntimeError('Capture returned a non-JPEG path; hold for investigation, no retry')
+        item = self.describe(captured['folder'], captured['name'])
+        if key(item) in known:
+            raise RuntimeError('Capture returned an already assigned file; no retry')
+        record('identified', item)
+        self.download(item, destination)
+        validate_jpeg(destination)
+        record('downloaded', {'sha256': hashlib.sha256(Path(destination).read_bytes()).hexdigest()})
+        if self.scan_cancelled():
+            raise RuntimeError('Stopped before preview restart')
+        if preview_enabled:
+            frame = self.start_preview()
+            record('preview_restarted', {})
+            return frame
+        return None
+
     def describe(self, folder, name):
         info = self.camera.file_get_info(folder, name).file
         if info.size <= 0:
@@ -47,14 +106,52 @@ class GPhotoCamera:
         return identity(folder, name, info.size, info.mtime)
 
     def snapshot(self):
+        # Keep full metadata identity: a partial scan must never become a baseline.
         result = []
+        started = time.monotonic()
+        sequence = 0
+
+        def operation(method, *args):
+            nonlocal sequence
+            if self.scan_cancelled():
+                raise RuntimeError('SD scan cancelled; baseline incomplete')
+            sequence += 1
+            begin = time.monotonic()
+            record = {'sequence': sequence, 'operation': method, 'arguments': list(args),
+                      'jpeg_count': len(result), 'scan_elapsed': begin - started}
+            self.stage = f"SD scan: {method} {args!r} ({len(result)} JPEGs described)"
+            self.scan_progress = dict(record, state='start')
+            if self.scan_trace:
+                self.scan_trace(self.scan_progress)
+            try:
+                if method == 'file_get_info':
+                    value = self.describe(*args)
+                else:
+                    # Include iteration in the timed operation; bindings can be lazy.
+                    value = list(getattr(self.camera, method)(*args))
+            except Exception as exc:
+                self.scan_progress = dict(record, state='error', duration=time.monotonic() - begin,
+                                          error=str(exc))
+                if self.scan_trace:
+                    self.scan_trace(self.scan_progress)
+                raise
+            self.scan_progress = dict(record, state='done', duration=time.monotonic() - begin)
+            if method != 'file_get_info':
+                self.scan_progress['entries'] = len(value)
+            if self.scan_trace:
+                self.scan_trace(self.scan_progress)
+            if self.scan_cancelled():
+                raise RuntimeError('SD scan cancelled; baseline incomplete')
+            return value
+
         def walk(folder):
-            for name, _ in self.camera.folder_list_files(folder):
+            for name, _ in operation('folder_list_files', folder):
                 if name.lower().endswith(('.jpg', '.jpeg')):
-                    result.append(self.describe(folder, name))
-            for name, _ in self.camera.folder_list_folders(folder):
+                    result.append(operation('file_get_info', folder, name))
+            for name, _ in operation('folder_list_folders', folder):
                 walk(posixpath.join(folder, name))
         walk('/')
+        self.stage = f'SD scan complete: {len(result)} JPEGs in {time.monotonic() - started:.2f}s'
         return ordered(result)
 
     def event(self):
@@ -72,9 +169,61 @@ class GPhotoCamera:
             raise RuntimeError('Incomplete camera download')
         atomic_bytes(destination, data)
 
+    def _set(self, name, value):
+        widget = self.camera.get_single_config(name)
+        widget.set_value(value)
+        self.camera.set_single_config(name, widget)
+
+    def _media(self):
+        return str(self.camera.get_single_config('recordingmedia').get_value())
+
+    def start_preview(self):
+        # libgphoto's first Nikon capture_preview enters remote live view and
+        # selects SDRAM. No still exposure is requested. Restore Card before
+        # reporting ready; never allow unattended startup with SDRAM selected.
+        self.stage = 'checking recording destination'
+        if self._media() != 'Card':
+            raise RuntimeError('Select Card recording media before enabling USB preview')
+        self.preview_started = True
+        try:
+            self.stage = 'requesting first USB preview frame'
+            # get_data_and_size borrows CameraFile storage. Keep its owner alive
+            # until bytes() has copied it (including on reference-counting Python).
+            camera_file = self.camera.capture_preview()
+            data = bytes(camera_file.get_data_and_size())
+        finally:
+            self.stage = 'restoring Card recording destination'
+            self._set('recordingmedia', 'Card')
+        self.stage = 'verifying Card recording destination'
+        if self._media() != 'Card':
+            raise RuntimeError('Could not restore Card recording after starting preview')
+        return data
+
+    def preview(self):
+        # Do not silently restart live view: libgphoto can select SDRAM when
+        # restarting it. Hardware qualification must establish capture recovery.
+        if not self.camera.get_single_config('viewfinder').get_value():
+            raise RuntimeError('Camera ended live view; preview recovery needs qualification')
+        if self._media() != 'Card':
+            raise RuntimeError('Recording destination changed away from Card')
+        camera_file = self.camera.capture_preview()
+        data = bytes(camera_file.get_data_and_size())
+        if self._media() != 'Card':
+            raise RuntimeError('Preview changed recording destination; stop taking photos')
+        return data
+
     def close(self):
         if self.camera is not None:
-            self.camera.exit()
+            try:
+                if self.preview_started:
+                    try:
+                        self._set('viewfinder', 0)
+                    finally:
+                        self._set('recordingmedia', 'Card')
+                        if self._media() != 'Card':
+                            raise RuntimeError('Verify recording destination on the camera')
+            finally:
+                self.camera.exit()
 
 
 def discover():
@@ -150,12 +299,48 @@ class DemoCamera:
             img.save(buf, format='JPEG', quality=92)
             atomic_bytes(self.directory / f'{time.time_ns()}-{number:02d}.jpg', buf.getvalue())
 
+    def describe(self, folder, name):
+        path = self.directory / name
+        return identity('/', name, path.stat().st_size, path.stat().st_mtime_ns)
+
+    def software_shot(self, known, destination, record, preview_enabled):
+        import hashlib
+        from render import validate_jpeg
+        record('capture_intent', {'count': 1, 'target': 'Memory card'})
+        self.shoot(1)
+        path = max(self.directory.glob('*.jpg'), key=lambda p: p.stat().st_mtime_ns)
+        record('capture_returned', {'folder': '/', 'name': path.name})
+        item = self.describe('/', path.name)
+        if key(item) in known:
+            raise RuntimeError('Duplicate demo capture')
+        record('identified', item)
+        self.download(item, destination)
+        validate_jpeg(destination)
+        record('downloaded', {'sha256': hashlib.sha256(Path(destination).read_bytes()).hexdigest()})
+        if preview_enabled:
+            record('preview_restarted', {})
+            return self.start_preview()
+        return None
+
     def close(self):
         pass
 
+    def start_preview(self):
+        return self.preview()
+
+    def preview(self):
+        img = Image.new('RGB', (640, 426), '#416f77' if self.label == 'A' else '#bc7453')
+        draw = ImageDraw.Draw(img)
+        draw.text((50, 150), 'DEMO ' + self.label, fill='white', font_size=70)
+        draw.text((50, 250), time.strftime('%H:%M:%S'), fill='white', font_size=32)
+        buf = io.BytesIO()
+        img.save(buf, 'JPEG')
+        return buf.getvalue()
+
 
 class CameraWorker(threading.Thread):
-    def __init__(self, label, adapter, events, mode='events', poll_seconds=2):
+    def __init__(self, label, adapter, events, mode='events', poll_seconds=2, preview_fps=0,
+                 baseline_required=True):
         super().__init__(name='camera-' + label, daemon=True)
         self.label, self.adapter, self.events = label, adapter, events
         self.mode, self.poll_seconds = mode, poll_seconds
@@ -163,6 +348,49 @@ class CameraWorker(threading.Thread):
         self.stopping = threading.Event()
         self.failure = None
         self.ready = Future()
+        self.preview_fps = preview_fps
+        self.frame_lock = threading.Lock()
+        self.frame = None
+        self.frame_at = 0
+        self.frame_sequence = 0
+        self.frame_times = deque(maxlen=30)
+        self.cleanup_error = None
+        self.baseline_required = baseline_required
+        self.stage = 'not started'
+        self.rejected_frame = None
+        if isinstance(adapter, GPhotoCamera):
+            adapter.scan_cancelled = self.stopping.is_set
+
+    def publish_frame(self, data):
+        if len(data) > 8 * 1024 * 1024:
+            raise RuntimeError('Oversized camera preview')
+        try:
+            with Image.open(io.BytesIO(data)) as img:
+                if img.format != 'JPEG':
+                    raise RuntimeError('Camera preview is not JPEG')
+                img.verify()
+        except Exception:
+            self.rejected_frame = data
+            raise
+        with self.frame_lock:
+            self.frame, self.frame_at = data, time.monotonic()
+            self.frame_sequence += 1
+            self.frame_times.append(self.frame_at)
+
+    def preview_status(self):
+        with self.frame_lock:
+            now = time.monotonic()
+            times = [t for t in self.frame_times if now - t <= 5]
+            fps = (len(times) - 1) / (times[-1] - times[0]) if len(times) > 1 else 0
+            return {'frames': self.frame_sequence, 'recent_fps': round(fps, 2),
+                    'frame_age_seconds': round(now - self.frame_at, 2) if self.frame_at else None,
+                    'stage': getattr(self.adapter, 'stage', self.stage)}
+
+    def latest_frame(self):
+        with self.frame_lock:
+            if self.failure or self.stopping.is_set() or time.monotonic() - self.frame_at > 2:
+                return None
+            return self.frame
 
     def request(self, method, *args):
         future = Future()
@@ -176,11 +404,22 @@ class CameraWorker(threading.Thread):
 
     def run(self):
         try:
+            self.stage = 'opening camera'
             self.adapter.open()
-            initial = self.adapter.snapshot()
+            if self.stopping.is_set():
+                raise RuntimeError('Startup cancelled')
+            self.stage = 'reading SD-card baseline'
+            initial = self.adapter.snapshot() if self.baseline_required else []
+            if self.stopping.is_set():
+                raise RuntimeError('Startup cancelled')
             observed = {key(i) for i in initial}
+            if self.preview_fps:
+                self.stage = 'starting preview'
+                self.publish_frame(self.adapter.start_preview())
+            self.stage = 'ready'
             self.ready.set_result(initial)
             next_poll = time.monotonic() + self.poll_seconds
+            next_preview = time.monotonic() + 1 / self.preview_fps if self.preview_fps else float('inf')
             while not self.stopping.is_set():
                 try:
                     method, args, future = self.commands.get_nowait()
@@ -188,16 +427,22 @@ class CameraWorker(threading.Thread):
                     future = None
                 if future is not None:
                     try:
-                        future.set_result(getattr(self.adapter, method)(*args))
+                        result = getattr(self.adapter, method)(*args)
+                        if method == 'software_shot' and result is not None:
+                            self.publish_frame(result)
+                        future.set_result(result)
                     except Exception as exc:
                         future.set_exception(exc)
                         raise
                     continue
+                if time.monotonic() >= next_preview:
+                    self.publish_frame(self.adapter.preview())
+                    next_preview = time.monotonic() + 1 / self.preview_fps
                 if self.mode == 'events':
                     item = self.adapter.event()
                     if item:
                         self.events.put((self.label, item, None))
-                elif time.monotonic() >= next_poll:
+                elif self.mode == 'poll' and time.monotonic() >= next_poll:
                     items = self.adapter.snapshot()
                     for item in items:
                         if key(item) not in observed:
@@ -221,5 +466,7 @@ class CameraWorker(threading.Thread):
                     break
             try:
                 self.adapter.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                self.cleanup_error = 'Camera cleanup failed: ' + str(exc)
+                self.failure = self.failure or self.cleanup_error
+                self.events.put((self.label, None, self.cleanup_error))

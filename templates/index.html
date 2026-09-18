@@ -13,13 +13,16 @@
   <section class="intro"><div><p class="eyebrow">TWO CAMERAS. ONE GOOD MOMENT.</p><h1>From shutter<br>to keepsake.</h1><p class="subtitle">Eight photos each. Four strips. All together.</p></div><div class="status-block"><span class="pulse" id="pulse"></span><p id="phase">Starting up</p><small id="phase-detail">Connecting to the cameras…</small></div></section>
   <div id="notice" role="status" aria-live="polite" hidden></div>
   <section class="collection panel" aria-label="Current batch">
-    <div class="section-head"><h2>Next sixteen</h2><span class="eyebrow">AUTOMATIC COLLECTION</span></div>
+    <div class="section-head"><h2>Next sixteen</h2><span class="eyebrow">{{ 'SOFTWARE CAPTURE' if software else 'AUTOMATIC COLLECTION' }}</span></div>
     <div class="cameras">
       <article class="camera"><div class="camera-title"><span class="camera-label">A</span><div><h3>Camera A</h3><p id="camera-A">Connecting</p></div><strong id="count-A">0 <small>/ 8</small></strong></div><progress id="progress-A" max="8" value="0" aria-label="Camera A photographs"></progress></article>
       <article class="camera"><div class="camera-title"><span class="camera-label warm">B</span><div><h3>Camera B</h3><p id="camera-B">Connecting</p></div><strong id="count-B">0 <small>/ 8</small></strong></div><progress id="progress-B" max="8" value="0" aria-label="Camera B photographs"></progress></article>
     </div>
-    <div class="collection-foot"><p id="waiting">Waiting for the cameras…</p><div class="actions">{% if demo %}<button id="demo" class="primary">Simulate 8 + 8 photos</button>{% endif %}<button id="reset">Reset next 16</button></div></div>
+    <div class="collection-foot"><p id="waiting">Waiting for the cameras…</p><div class="actions">{% if software %}<button id="capture" class="primary">Take 8 + 8 photos</button>{% elif demo %}<button id="demo" class="primary">Simulate 8 + 8 photos</button>{% endif %}<button id="reset">Reset next 16</button></div></div>
     <p class="hint">Reset ignores the pending photos and starts a fresh count. SD-card files are always kept.</p>
+    {% if previews %}<p class="hint">Monitor pages: <a href="/view/A" target="_blank" rel="noopener">Camera A</a> · <a href="/view/B" target="_blank" rel="noopener">Camera B</a>. Open each on its monitor and select Full screen.</p>{% endif %}
+    <p id="capture-records" class="hint" hidden></p>
+    <button id="resume-capture" hidden>Resume known shots and remaining slots</button><button id="abandon-capture" hidden>Abandon held batch — keep all files</button>
     <button id="retry" hidden>Retry preparation</button><button id="acknowledge" hidden>I checked the printer — continue without reprinting</button>
   </section>
   <section class="overlays"><div class="section-head"><div><p class="eyebrow">MAKE IT YOURS</p><h2>Four strips. Four signatures.</h2></div><p class="hint">600 × 1800 PNG · transparent photo areas<br>Text belongs in your artwork.</p></div>
@@ -27,6 +30,6 @@
     <p class="hint">Changes apply to the next batch. Each batch keeps its own copy of the artwork.</p>
   </section>
   <section class="bottom-grid"><article class="panel last"><p class="eyebrow">THE LAST KEEPSAKE</p><h2 id="last-title">Your first sheet is next.</h2><p id="last-detail" class="hint">Completed sheets appear here.</p><img id="last-preview" hidden alt="Last rendered four-strip sheet"></article><article class="panel print"><p class="eyebrow">OUTPUT</p><h2>One sheet.<br>Four memories.</h2><div class="print-spec"><span>6 × 8 INCH SHEET</span><span>4 × 2 × 6 STRIPS</span><span>300 DPI</span></div><p id="printer-status" class="hint">Checking print configuration…</p><p class="hint">“Submitted” means CUPS accepted the job. Check the printer for physical completion.</p></article></section>
-  <footer><span>STRIPSHOT / MADE TO KEEP</span><span>HDMI owns live view. Intervalometers own the moment.</span></footer>
+  <footer><span>STRIPSHOT / MADE TO KEEP</span><span>All camera files are kept.</span></footer>
 </main>
 </body></html>

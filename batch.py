@@ -12,13 +12,18 @@ from camera import CameraWorker, key, ordered
 from printer import Printer
 from render import normalize_overlay, render_sheet, validate_jpeg
 from storage import atomic_bytes, save_json
+from software import SoftwareWorkflow
 
 LOG = logging.getLogger(__name__)
 
 
-class Engine:
+class Engine(SoftwareWorkflow):
     def __init__(self, config, adapters):
         self.config = config
+        self.software = config['camera_mode'] == 'software'
+        if self.software and config['printer']['enabled']:
+            raise ValueError('Software capture printing remains disabled pending hardware qualification')
+        self.capture_futures = []
         self.root = Path(config['data_dir'])
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = self.root / 'state.json'
@@ -26,11 +31,14 @@ class Engine:
         self.events, self.commands = queue.Queue(), queue.Queue()
         self.stop_event = threading.Event()
         self.workers = {c: CameraWorker(c, adapters[c], self.events, config['camera_mode'],
-                                       config['poll_seconds']) for c in ('A', 'B')}
+                                       config['poll_seconds'], config.get('preview_fps', 0),
+                                       baseline_required=not self.software) for c in ('A', 'B')}
         self.printer = Printer(config['printer'])
         self.phase, self.error = 'starting', None
         self.camera_status = {c: 'connecting' for c in ('A', 'B')}
         self.binding = {'demo': config['demo'], 'cameras': config.get('cameras', {})}
+        if self.software:
+            self.binding['capture_mode'] = 'software'
         self.state = self._load()
         self.thread = threading.Thread(target=self.run, name='coordinator', daemon=True)
 
@@ -50,8 +58,14 @@ class Engine:
             if any(key(i) not in state['seen'][c] for i in state['pending'][c]):
                 raise ValueError('Pending files are missing from saved observations')
         current = state['current']
-        if current and current['stage'] not in ('preparing', 'print_intent', 'print_uncertain'):
+        if current and current['stage'] not in ('preparing', 'print_intent', 'print_uncertain', 'capturing', 'capture_held'):
             raise ValueError('Unknown saved batch stage')
+        if current and self.software:
+            if not current.get('software') or any(
+                not isinstance(current.get('shots', {}).get(c), list) or len(current['shots'][c]) != 8
+                or any(not isinstance(s, dict) for s in current['shots'][c]) for c in ('A', 'B')
+            ):
+                raise ValueError('Invalid saved software shutter records; preserve state for investigation')
         return state
 
     def save(self):
@@ -77,7 +91,12 @@ class Engine:
         with self.lock:
             return {'phase': self.phase, 'error': self.error,
                     'cameras': dict(self.camera_status),
-                    'counts': {c: len(self.state['pending'][c]) for c in ('A', 'B')},
+                    'previews': {c: w.preview_status() for c, w in self.workers.items()},
+                    'capture_mode': self.config['camera_mode'],
+                    'capture_busy': any(not f.done() for f in self.capture_futures),
+                    'counts': {c: (sum(bool(s.get('downloaded_at')) for s in self.state['current']['shots'][c])
+                                   if self.software and self.state['current'] else len(self.state['pending'][c]))
+                               for c in ('A', 'B')},
                     'current': copy.deepcopy(self.state['current']),
                     'last': copy.deepcopy(self.state['last']),
                     'demo': self.config['demo'], 'printing_enabled': self.config['printer']['enabled']}
@@ -91,6 +110,8 @@ class Engine:
         return future
 
     def ingest(self, camera, item):
+        if self.software:
+            return  # External events never enter a software-triggered batch.
         ident = key(item)
         if ident in self.state['seen'][camera]:
             return
@@ -100,6 +121,9 @@ class Engine:
 
     def initialize(self):
         snapshots = {c: w.ready.result(timeout=120) for c, w in self.workers.items()}
+        if self.software:
+            self.software_initialize()
+            return
         with self.lock:
             if not self.state['initialized']:
                 self.state['seen'] = {c: [key(i) for i in snapshots[c]] for c in ('A', 'B')}
@@ -129,7 +153,7 @@ class Engine:
             else:
                 self.phase = 'watching'
 
-    def freeze(self):
+    def freeze(self, software=False):
         with self.lock:
             batch_id = 'batch-' + uuid.uuid4().hex
             directory = self.root / 'batches' / batch_id
@@ -149,6 +173,9 @@ class Engine:
                 'layout': copy.deepcopy(self.config['layout']),
                 'printer': copy.deepcopy(self.config['printer']), 'overlays': overlays,
             }
+            if software:
+                self.state['current'].update(stage='capturing', software=True,
+                                             shots={c: [{} for _ in range(8)] for c in ('A', 'B')})
             for c in ('A', 'B'):
                 self.state['pending'][c] = self.state['pending'][c][8:]
             self.save()
@@ -158,6 +185,8 @@ class Engine:
         with self.lock:
             batch = copy.deepcopy(self.state['current'])
             self.phase = 'downloading'
+        if batch.get('software') and batch['printer']['enabled']:
+            raise RuntimeError('Saved software batch cannot enable physical printing')
         directory = self.root / 'batches' / batch['id']
         photos = {c: [] for c in ('A', 'B')}
         downloads = []
@@ -165,6 +194,12 @@ class Engine:
             for index, item in enumerate(batch['files'][c], 1):
                 path = directory / f'{c}{index:02d}.jpg'
                 photos[c].append(path)
+                if batch.get('software'):
+                    actual = self.workers[c].request('describe', item['folder'], item['name']).result(30)
+                    if actual != item:
+                        raise RuntimeError('Captured card file changed before rendering')
+                    if self.software_local_valid(batch['shots'][c][index - 1], path):
+                        continue
                 # Restart/retry of preparation is safe; no printing has been attempted.
                 downloads.append((self.workers[c].request('download', item, path), path))
         for future, path in downloads:
@@ -200,6 +235,10 @@ class Engine:
             self.phase, self.error = 'watching', None
 
     def action(self, action, *args):
+        if action in ('capture', 'resume_capture', 'abandon_capture'):
+            if not self.software:
+                raise ValueError('Select software capture mode first')
+            return self.software_action(action)
         if action == 'overlay':
             index, content = args
             if index not in (1, 2, 3, 4):
@@ -208,6 +247,8 @@ class Engine:
         elif action == 'reset':
             if self.state['current'] or self.phase != 'watching':
                 raise ValueError('Reset is available only while watching with no active batch')
+            if self.software:
+                return  # No pending external photographs and no historical scan.
             futures = {c: w.request('snapshot') for c, w in self.workers.items()}
             snapshots = {c: f.result(timeout=120) for c, f in futures.items()}
             with self.lock:
@@ -233,7 +274,7 @@ class Engine:
                 raise ValueError('A camera worker failed; check its connection and restart Stripshot')
             self.phase, self.error = 'watching', None
         elif action == 'demo':
-            if not self.config['demo'] or self.phase != 'watching' or self.state['current']:
+            if self.software or not self.config['demo'] or self.phase != 'watching' or self.state['current']:
                 raise ValueError('Demo capture is available only while the demo is watching')
             futures = [w.request('shoot') for w in self.workers.values()]
             for future in futures:
@@ -246,9 +287,14 @@ class Engine:
             self.initialize()
             while not self.stop_event.is_set():
                 # A failed camera holds the whole appliance; its partner cannot print alone.
-                if any(w.failure for w in self.workers.values()) and self.phase != 'print_uncertain':
+                if any(w.failure for w in self.workers.values()) and self.phase not in ('print_uncertain', 'capture_held'):
                     with self.lock:
-                        self.phase = 'error'
+                        if self.software and self.state['current'] and self.state['current']['stage'] == 'capturing':
+                            self.state['current']['stage'] = 'capture_held'
+                            self.save()
+                            self.phase = 'capture_held'
+                        else:
+                            self.phase = 'error'
                         self.error = 'Camera connection failed. Check connections and restart Stripshot.'
                         for c, w in self.workers.items():
                             if w.failure:
@@ -272,6 +318,8 @@ class Engine:
                             self.ingest(c, item)
                 except queue.Empty:
                     pass
+                if self.phase == 'capturing':
+                    self.software_step()
                 if self.phase == 'watching':
                     try:
                         if not self.state['current'] and all(len(self.state['pending'][c]) >= 8 for c in ('A', 'B')):

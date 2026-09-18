@@ -1,124 +1,168 @@
 # Stripshot
 
-A small, unattended photo-strip appliance for two Nikon D3300 cameras and one
-DNP DS40. Intervalometers take the photographs; the cameras feed their HDMI
-monitors directly. Stripshot observes new SD-card JPEGs, waits for **8 from A and
-8 from B**, downloads those exact files, renders four strips, and submits one sheet.
+Current stage: software capture is integrated into the appliance and tested with
+simulated cameras. The next hardware test is one two-camera batch. Physical
+printing is disabled in software mode. Do not enable unattended startup yet.
 
-There are no software shutter commands, camera-setting writes, preview requests,
-SD-card deletions, guest sessions, or countdowns.
+Two Nikon D3300s each take eight software-triggered photographs. Stripshot saves
+and validates those exact sixteen JPEGs, renders four independently overlaid
+strips, and produces one 2400 × 1800, 300 DPI sheet. All SD files are kept.
+Computer-driven USB previews feed `/view/A` and `/view/B` on the W541 monitors.
 
-## Run the demo
+## Next hardware test — one command
 
-Python 3.10 or later on Linux:
+Stop the previous diagnostic/application, connect both D3300s with their working
+USB cables and SD cards, and disconnect the intervalometers. Select JPEG capture
+on both cameras; a returned RAW path deliberately holds the batch for review.
+From this application directory, run in the Ubuntu terminal:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python app.py --config config.demo.json
+bash test-two-cameras
 ```
 
-Open **http://127.0.0.1:8080** and click **Simulate 8 + 8 photos**. The demo creates
-JPEGs on two local simulated cards, sends them through the same batch/render
-pipeline, and shows the finished sheet. It cannot enable physical printing.
-Demo state lives in `demo-data/`, completely separate from live state.
+Open **http://127.0.0.1:8090/**. The launcher discovers current USB addresses, assigns
+A/B by serial number, prints that mapping, and starts the actual appliance dashboard.
+Open both monitor links, confirm that both views move, then click **Take 8 + 8
+photos** once. This takes sixteen new photographs. No shots occur just from
+launching the application. No historical SD-card scan runs.
 
-The dashboard includes camera counts/status, four overlay previews/uploads,
-**Reset next 16**, the last sheet, and CUPS queue status. It uses local assets only.
-An empty overlay slot displays a layout illustration; no artwork is applied to
-the actual output until a PNG is uploaded.
+The expected result is 8/8 per camera during capture, a completed four-strip sheet,
+and moving previews again. Counters return to zero after completion. The last sheet
+says **Your sheet is ready** with **Dry run — no paper used**. Upload the four PNGs
+before starting if you want this batch to use your artwork. Each batch freezes its
+own overlay copies, layout and print configuration at the start.
 
-## Install on the W541
+A successful code result does not prove usable monitor placement, subject framing,
+physical preview recovery, or synchronized shutters. Observe those on the hardware.
+Only take another batch when the first result is understood; no repeated full-card
+audits are needed to re-establish the successful one-camera qualification.
 
-From the repository directory:
+The terminal prints an evidence directory, normally `/tmp/stripshot-two-cameras-*`:
+
+- `state.json`: durable active/last batch and per-shot records.
+- `batches/<id>/`: the exact sixteen originals, frozen overlays, sheet, preview,
+  and final manifest.
+- `report.json`: latest phase, counters, preview FPS and batch details.
+- `cleanup.json`: whether workers exited and camera cleanup reported success.
+- `qualification-config.json`: stable camera binding and disabled printing.
+
+Ctrl+C ends the test. Reuse the printed directory for restart qualification:
 
 ```bash
-sudo apt update
-sudo apt install python3-venv python3-gphoto2 gphoto2 cups-client
+bash test-two-cameras --data-dir /tmp/stripshot-two-cameras-EXACT_DIRECTORY
+```
+
+Restarting an interrupted capture **never automatically fires another shutter**.
+The dashboard holds the batch for review. A fresh launcher run without `--data-dir`
+creates a separate evidence directory; it does not recover the previous batch.
+Do not run two applications against the same cameras. If cleanup reports a live
+worker or failed USB release, ensure the old process has exited before restarting.
+
+## What has actually been qualified
+
+The successful one-camera full audit is retained at
+`/tmp/stripshot-usb-preview-wbgpvkfk/report.json`: eight commands returned
+DSC_0435.JPG–DSC_0442.JPG, all eight downloaded and decoded, preview recovered after
+each shot, and a fresh-session complete inventory matched exactly those eight new
+JPEG identities. That audit should not be repeated just to confirm the same result.
+
+The actual two-camera appliance has completed repeated 8+8 batches, with visible
+preview recovery and controlled Ctrl+C/restart/explicit resume confirmed. Preview
+rates were about 2.7–2.75 FPS and typical paired rounds 4.8–5.3 seconds. See
+[hardware status](docs/HARDWARE-STATUS.md) for exact evidence and remaining limits.
+Abrupt native failure, final monitor placement, and physical printing remain
+unqualified. No additional ordinary capture batch is needed.
+
+The legacy single-camera diagnostic remains available through `test-preview`.
+Its eight-shot mode defaults to exact-file verification; `--full-card-audit` opts
+into the long historical inventory and fresh-session audit. The new appliance
+checks exact returned identities; it does **not** claim that no unrelated photos
+were taken elsewhere on the cards.
+
+## Durable software capture and recovery
+
+`camera_mode: "software"` uses one persistent owning worker per camera. Browser
+preview requests use cached JPEGs and never open camera sessions. Each paired round
+requests one shot from A and B concurrently; no tight shutter synchronization is
+claimed. Each worker stops live view, verifies Card and Memory-card capturetarget,
+fsyncs the shutter intent, calls capture exactly once, saves the returned path,
+identifies and downloads the exact JPEG, decodes it, and restarts preview. The
+prior capturetarget is restored in `finally`.
+
+Two additional preview frames must arrive within three seconds before the next
+round. Frames may disappear during shutter/download; stale frames are hidden.
+Native USB calls cannot be interrupted by a thread flag. A timeout holds the batch
+and does not permit replacement shots. The dashboard reports recent measured FPS;
+manifests contain intent/return timestamps, round duration and preview frame counts.
+
+- **Interrupted capture:** startup holds it for operator review. Resume accepts
+  saved exact identities and previously unissued slots only. Identified files are
+  rechecked/downloaded without another shutter. A saved intent lacking full file
+  identity is ambiguous and cannot be resumed automatically, even if a path exists.
+- **Abandon held batch:** archives its records and keeps every SD/local file. It
+  does not complete, print, or fire replacements for that batch. A new batch needs
+  a separate explicit start. Preserve uncertain files for manual investigation.
+- **Preparation failure:** retry/restart can re-download exact saved identities.
+  Local copies are checked against saved SHA-256 hashes. Modified/missing camera
+  files stop recovery. No other photos are substituted.
+- **Reset next 16:** available between batches. Software mode has no external-file
+  pending queue, so reset does not scan or delete anything. It cannot erase an
+  active/uncertain batch.
+- **Printer uncertainty:** the original durable print-intent protection remains.
+  An uncertain CUPS submission never automatically retries. Software-mode printing
+  is rejected both by configuration validation and the engine, including recovered
+  batch settings. Hardware print qualification needs a separately approved change.
+
+Software mode uses a distinct saved-state binding. Existing external-event data is
+not silently reinterpreted. Use `config.software.example.json` and a separate data
+directory. Preserve old data/configuration/artwork; copy intended overlays into the
+new data directory or upload them using the dashboard. The launcher never edits the
+old snapshot or its configuration.
+
+Atomic JSON saves fsync both file and directory. A process lock protects each data
+directory. No automatic SD deletion, local retention cleanup or formatting exists.
+Keep cards in place through recovery; use a new data directory when changing cards.
+Since software mode avoids historical inventory, it does not detect replacement of
+an idle card by comparing all its old contents.
+
+## Install / normal application entry point
+
+The hardware launcher uses Ubuntu `python3-gphoto2`, `python3-flask`, and `python3-pil`.
+It runs a local Werkzeug server for qualification only. For the normal Waitress app:
+
+```bash
 python3 -m venv --system-site-packages .venv
 .venv/bin/pip install -r requirements.txt
-cp config.example.json config.json
-```
-
-The system-site-packages flag exposes Ubuntu's libgphoto2 Python binding inside
-the virtual environment. The DS40's CUPS queue and appropriate printer driver
-must already be installed. Stripshot does not install or change the driver.
-
-### 1. Qualify USB and HDMI together
-
-Stop any other camera software or automatic photo importer. Insert both SD cards,
-connect the intervalometers, connect USB and HDMI, and enable HDMI live view.
-With Stripshot stopped:
-
-```bash
-bash tools/qualify-usb-events
-```
-
-Trigger one physical 8+8 sequence during its 60-second observation window. Confirm
-both cameras take all eight photographs and HDMI remains usable. The script only
-observes events. It does not download, delete, set configuration, or trigger a shot.
-
-**Hardware qualification is still required.** The code cannot establish that a
-D3300 supports the desired HDMI/accessory-port behavior while PTP stays open.
-Holding USB open is a strategy to test, not a guarantee of HDMI keep-awake.
-
-### 2. Assign stable camera identities
-
-With other observers stopped:
-
-```bash
+cp config.software.example.json config.json
 .venv/bin/python app.py --discover
 ```
 
-Copy the two serial numbers into `cameras.A.serial` and `cameras.B.serial` in
-`config.json`. Camera identity is checked again when each persistent worker opens
-its connection. USB port numbering may change without swapping A and B.
-Discovery reads configuration; it never writes it. If a camera cannot provide a
-serial number, startup fails instead of guessing which camera it is.
-
-### 3. Run a live-camera dry run
-
-Keep `printer.enabled` set to `false`:
+Put the serials into `config.json`, leave printing disabled, then run:
 
 ```bash
 .venv/bin/python app.py --config config.json
 ```
 
-Wait for **Ready for the moment** before taking photos. Existing files on the
-first startup become the baseline; they are not printed. Trigger the intervalometers
-once. Verify the counters, the completed preview, and all sixteen originals under
-`data/batches/<batch-id>/`.
+The normal dashboard defaults to **http://127.0.0.1:8080/**. Open `/view/A` and
+`/view/B` in separate browser windows, move them to the monitors and select Full
+screen. USB addresses are rediscovered on launch; serials define A/B.
 
-`camera_mode: "events"` uses persistent libgphoto2 file-added events. If the hardware
-qualification shows missing events, set `camera_mode: "poll"` and restart. Poll mode
-reads recursive SD file lists at `poll_seconds` intervals while keeping the same
-camera connection open. It is intentionally slower and must also be qualified.
-There is no automatic mode switch or repeated USB reconnect loop.
+Leave `gvfs-gphoto2-volume-monitor.service` masked as already configured. No changes
+to unrelated GVFS services or AppArmor are needed. Do not enable the supplied user
+service until hardware qualification is complete.
 
-### 4. Qualify the printer, then enable printing
+## Demo and legacy external capture
 
-```bash
-lpstat -p -d
-lpoptions -p YOUR_DS40_QUEUE -l
-```
+`python3 tools/qualify-two-cameras --demo` runs the new workflow using local fake
+cards. It requires a local server socket. `app.py --config config.demo.json` retains
+the original event-based demo and **Simulate 8 + 8 photos** control.
 
-Set `printer.queue` to the actual queue name. Set `printer.options` to the exact
-media, orientation, and cutting option names/values reported by your installed
-driver. For example, each `"OptionName": "Value"` becomes `-o OptionName=Value`.
-No guessed DS40 option names are shipped. Leave printing disabled until the queue
-is configured. Restart the app after editing configuration.
+Legacy `camera_mode: "events"` and `"poll"` remain supported for existing state and
+regression testing. They inventory historical files, collect external arrivals,
+retain overflow, and reconcile offline arrivals. They are not the chosen D3300 USB
+preview workflow: physical intervalometers did not fire while USB control was active.
 
-The render is **2400 × 1800 pixels at 300 DPI**, landscape 8 × 6 inches, with four
-600 × 1800 strips side by side. Physically this is one 6 × 8 sheet. Verify rotation,
-scale, border handling, color and 2-inch cutting on a real sheet with your driver.
-Then set `printer.enabled` to `true` and restart for unattended operation.
-
-Every job uses an explicit queue, one copy, and a batch-specific title. A dashboard
-status of **submitted** only means `lp` returned a CUPS job ID; it does not claim that
-paper has emerged. Driver/spooler behavior is outside Stripshot's at-most-once
-submission guarantee.
-
-## Layout and overlays
+## Layout and artwork
 
 | Strip | Photo order, top to bottom |
 | --- | --- |
@@ -127,90 +171,22 @@ submission guarantee.
 | 3 | A5, B5, A6, B6 |
 | 4 | A7, B7, A8, B8 |
 
-Upload four independent **600 × 1800 PNGs** with transparent photograph areas.
-Opaque PNGs and other dimensions are rejected. Bake text into the PNG. Photos
-are EXIF-oriented and center-cropped to their slots, then artwork is composited
-over them. White margins and an empty footer remain when no overlay is supplied.
+Upload four independent **600 × 1800 transparent PNGs**. Artwork is composited over
+EXIF-oriented, center-cropped photos. The full sheet is **2400 × 1800 at 300 DPI**,
+a landscape 8 × 6 inch image for one 6 × 8 sheet. Nikon JPEG/MPO downloads retain
+original bytes; rendering uses the full-resolution primary image, not thumbnails.
 
-The `layout` configuration is in pixels: `margin` is left/right padding, `gap`
-separates the four photos, and `top`/`bottom` reserve vertical space. Defaults are
-24, 18, 24 and 180. Changes take effect after restart. Each batch snapshots its
-overlays, layout, and printer settings so preparation retries keep the same output.
+The host DS40 queue and available media/cutting options have been identified;
+[physical qualification](docs/PRINT-QUALIFICATION.md) remains pending explicit authorization. No print
+or PR merge is authorized by this development handoff.
 
-## Recovery and operation
-
-- **Partial batch:** counts and exact file identities survive restart. New files
-  taken while the application was stopped are reconciled on startup. Duplicate
-  events are ignored. Extra arrivals are retained for the following batch.
-- **Reset next 16:** while watching, establishes fresh snapshots of both cameras
-  and clears pending counts. Do this between intervalometer sequences. No files
-  are deleted. Reset is unavailable during batch processing.
-- **Downloads/render failure:** no print has been attempted. Inspect the error;
-  retry preparation where possible, or correct the problem and restart. Originals
-  must remain on both cards for recovery.
-- **Uncertain print:** a durable print-intent record is written before invoking
-  `lp`. Timeout, ambiguous output, or restart after that point holds the batch.
-  Inspect CUPS and the physical printer, then acknowledge in the dashboard to
-  continue **without resubmitting that batch**. There is no automatic reprint.
-- **Camera disconnect:** the application pauses; correct the connection and
-  restart. It does not repeatedly seize/release USB or silently switch cameras.
-- **Card replacement/format:** stop the application between batches. Archive the
-  old data directory and configure a new one. Saved pending files missing from an
-  SD card, a completely changed baseline, corrupt state, or mismatched camera
-  bindings stop startup. Do not delete `state.json` to clear a print error.
-- **Disk space:** originals, sheets, artwork snapshots and manifests are kept.
-  Archive completed batches between events. No automatic deletion is implemented.
-
-`state.json` is the source of truth and is replaced atomically with file and
-directory fsync. Batch directories include a human-readable manifest. A process
-lock prevents two instances from sharing the same data directory. Run only one
-live instance against the cameras and printer.
-
-## Start at login
-
-The supplied systemd **user** unit assumes the repository is `~/stripshot`:
-
-```bash
-mkdir -p ~/.config/systemd/user
-cp deploy/stripshot.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now stripshot
-journalctl --user -u stripshot -f
-```
-
-Edit the unit's paths if cloned elsewhere. Configure and qualify manually before
-enabling the service. It starts when the user manager starts (normally at login).
-It deliberately does not restart repeatedly on camera failure. To restart:
-
-```bash
-systemctl --user restart stripshot
-```
-
-The dashboard binds to loopback by default. For operation from another computer,
-use an SSH tunnel (`ssh -L 8080:127.0.0.1:8080 USER@W541`) and browse localhost.
-The dashboard is for a trusted operator and has no account/login system; do not
-expose it to the public internet. Mutations require a per-process dashboard token.
-
-## Development and verification
+## Tests
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-The tests exercise full demo batches, restart behavior, baseline/reset semantics,
-polling fallback, overflow, corrupt images/state, image order, independent overlays,
-CSRF checks, process locking and uncertain print recovery. They do not substitute
-for Nikon/HDMI and DS40 hardware qualification.
-
-`--dev-server` uses Werkzeug instead of Waitress for local development. Normal
-startup uses Waitress. No Node build, database, message broker or external web
-assets are required.
-
-## Implementation references
-
-- [python-gphoto2](https://github.com/jim-easterbrook/python-gphoto2): persistent
-  camera access, `wait_for_event`, file metadata, and `file_get`.
-- [CUPS lp documentation](https://www.cups.org/doc/man-lp.html): explicit destination,
-  copy count and driver options.
-
-This project intentionally carries no application code from the old photobooth.
+Tests cover exact batches, uploads/layout, simulated paired capture, repeated
+batches, intent durability, uncertain-shutter holds, restart without extra shutters,
+exact-file recovery, preview recovery, MPO decoding, borrowed buffer lifetime,
+scan cancellation, and duplicate-print protections. They do not qualify hardware.

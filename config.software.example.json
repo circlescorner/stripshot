@@ -1,5 +1,5 @@
 {
-  "data_dir": "data",
+  "data_dir": "software-data",
   "demo": false,
   "host": "127.0.0.1",
   "port": 8080,
@@ -11,7 +11,7 @@
       "serial": "REPLACE_CAMERA_B"
     }
   },
-  "camera_mode": "events",
+  "camera_mode": "software",
   "poll_seconds": 2,
   "layout": {
     "margin": 24,
@@ -24,5 +24,5 @@
     "queue": "",
     "options": {}
   },
-  "preview_fps": 0
+  "preview_fps": 3
 }

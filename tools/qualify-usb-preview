@@ -1,0 +1,248 @@
+#!/usr/bin/env python3
+"""One-camera USB preview qualification. Software shutter only with --software-capture; never prints."""
+import argparse
+import json
+import logging
+import queue
+import signal
+import sys
+import tempfile
+import threading
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from flask import Flask
+from werkzeug.serving import make_server
+from camera import CameraWorker, DemoCamera, GPhotoCamera, discover, key, ordered
+from preview import register_preview
+from render import validate_jpeg
+from diagnostics import wait_for_camera
+from software_probe import SoftwareProbeCamera
+
+
+class ScanComplete(Exception):
+    pass
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--full-card-audit', action='store_true',
+                        help='For eight software shots, scan all old files and reopen for a full final audit')
+    parser.add_argument('--software-count', type=int, choices=(1, 8), default=1,
+                        help='Software probe photo count (default 1); eight includes preview recovery between shots')
+    parser.add_argument('--software-capture', action='store_true',
+                        help='Enable software-triggered photos (default one), verify SD persistence and resume preview')
+    parser.add_argument('--demo', action='store_true')
+    parser.add_argument('--scan-only', action='store_true',
+                        help='Time a complete card inventory without starting preview; keep shutter idle')
+    parser.add_argument('--external-capture', action='store_true',
+                        help='Operator takes eight external photos; verify and download those eight')
+    parser.add_argument('--seconds', type=int, default=90)
+    parser.add_argument('--port', type=int, default=8090)
+    args = parser.parse_args()
+    if sum((args.scan_only, args.external_capture, args.software_capture)) > 1:
+        parser.error('Choose only one capture or scan mode')
+    if args.software_count != 1 and not args.software_capture:
+        parser.error('--software-count requires --software-capture')
+    if args.software_capture and args.demo:
+        parser.error('--software-capture requires a physical camera')
+    if not 10 <= args.seconds <= 600:
+        parser.error('--seconds must be 10..600')
+    fast_cycle = args.software_capture and args.software_count == 8 and not args.full_card_audit
+    evidence = Path(tempfile.mkdtemp(prefix='stripshot-usb-preview-'))
+    print('Evidence:', evidence, flush=True)
+    if args.demo:
+        adapter = DemoCamera(evidence / 'demo-card', 'A')
+    else:
+        import gphoto2 as gp
+        attached = list(gp.Camera.autodetect())
+        if len(attached) != 1 or 'D3300' not in attached[0][0]:
+            raise SystemExit('Connect only one D3300 by USB. No camera session was opened.')
+        item = discover()[0]
+        print('Target:', json.dumps(item), flush=True)
+        adapter_type = SoftwareProbeCamera if args.software_capture else GPhotoCamera
+        adapter = adapter_type(item['port'], item['serial'])
+    trace_path = evidence / 'scan-operations.jsonl'
+    def trace(record):
+        with trace_path.open('a') as stream:
+            stream.write(json.dumps(record) + '\n')
+            stream.flush()
+    if isinstance(adapter, GPhotoCamera):
+        adapter.scan_trace = trace
+    if args.scan_only:
+        print('Scan-only: keep intervalometer idle. No preview or shutter commands.', flush=True)
+    events = queue.Queue()
+    worker = CameraWorker('A', adapter, events, preview_fps=0 if args.scan_only else 3,
+                          baseline_required=args.external_capture or args.scan_only or (args.software_capture and not fast_cycle))
+    logging.getLogger('werkzeug').setLevel(logging.ERROR)
+    app = Flask(__name__, template_folder=str(ROOT / 'templates'), static_folder=str(ROOT / 'static'))
+    register_preview(app, {'A': worker}, args.demo)
+    # Bind before opening the camera: a port collision must not seize USB.
+    server = None if args.scan_only else make_server('127.0.0.1', args.port, app, threaded=True)
+    stop = threading.Event()
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    report = {'demo': args.demo, 'external_capture_requested': args.external_capture,
+              'software_capture_requested': args.software_capture,
+              'software_count': args.software_count if args.software_capture else 0,
+              'verification_scope': 'exact returned downloads' if fast_cycle else 'full card inventory',
+              'scan_only': args.scan_only, 'scan_trace': str(trace_path),
+              'preview_frames': 0, 'events': [], 'hardware_qualified': False}
+    seen = set()
+    worker.start()
+    if server is not None:
+        serving = threading.Thread(target=server.serve_forever, daemon=True)
+        serving.start()
+    try:
+        initial = wait_for_camera(worker.ready, worker, adapter, stop, 'Startup')
+        report['baseline_jpegs'] = None if fast_cycle else len(initial)
+        if fast_cycle:
+            print('Fast cycle: following exact capture filenames; full-card inventory skipped.', flush=True)
+        if args.scan_only:
+            report['baseline_jpegs'] = len(initial)
+            report['scan_complete'] = True
+            (evidence / 'baseline.json').write_text(json.dumps(initial, indent=2))
+            print(f'Scan complete: {len(initial)} JPEGs. No preview started.', flush=True)
+            raise ScanComplete()
+        baseline = {key(i) for i in initial}
+        print(f'Preview ready; Card destination verified for live camera. Open http://127.0.0.1:{args.port}/view/A', flush=True)
+        if args.software_capture:
+            print(f'Software test: disconnect intervalometer. {args.software_count} automatic photo(s), beginning in 3 seconds.', flush=True)
+            if stop.wait(3):
+                raise RuntimeError('Test interrupted before software capture')
+            def capture_record(event, data):
+                entry = {'event': event, 'data': data, 'time': time.time()}
+                with (evidence / 'software-capture.jsonl').open('a') as stream:
+                    stream.write(json.dumps(entry) + '\n')
+                    stream.flush()
+                    import os
+                    os.fsync(stream.fileno())
+                print('Software capture:', json.dumps(entry), flush=True)
+            if args.software_count == 1:
+                frame = wait_for_camera(
+                    worker.request('software_probe', initial, evidence / 'software-A01.jpg', capture_record),
+                    worker, adapter, stop, 'Software capture')
+                worker.publish_frame(frame)
+                report['software_photo_verified'] = True
+            else:
+                captured = []
+                report['cycle_recovery'] = []
+                for index in range(1, 9):
+                    if stop.is_set() or worker.failure:
+                        raise RuntimeError(worker.failure or 'Cycle interrupted')
+                    def shot_record(event, data, shot=index):
+                        capture_record(event, {'shot': shot, 'detail': data})
+                    started = time.monotonic()
+                    item, frame = wait_for_camera(
+                        worker.request('cycle_shot', initial + captured,
+                                       evidence / f'software-A{index:02d}.jpg', shot_record),
+                        worker, adapter, stop, f'Shot {index}/8')
+                    captured.append(item)
+                    worker.publish_frame(frame)
+                    sequence = worker.frame_sequence
+                    # Allow the owning worker to serve moving preview before the
+                    # next shutter command. Never proceed on a stale single frame.
+                    recovery_deadline = time.monotonic() + 3
+                    while worker.frame_sequence - sequence < 2 and time.monotonic() < recovery_deadline and not worker.failure:
+                        if stop.wait(.05):
+                            raise RuntimeError('Cycle interrupted between shots')
+                    frames = worker.frame_sequence - sequence
+                    if worker.failure or frames < 2 or worker.latest_frame() is None:
+                        raise RuntimeError(worker.failure or 'Moving preview did not recover between shots')
+                    recovery = {'shot': index, 'additional_preview_frames': frames,
+                                'elapsed_seconds': time.monotonic() - started}
+                    report['cycle_recovery'].append(recovery)
+                    capture_record('between_shot_preview', recovery)
+                frame = wait_for_camera(worker.request('verify_cycle', initial, captured, capture_record, not fast_cycle),
+                                        worker, adapter, stop, 'Final verification')
+                worker.publish_frame(frame)
+                report['exact_eight_downloaded'] = True
+                report['software_cycle_verified'] = True
+            print('Download verification passed; preview active. Observing recovery now.', flush=True)
+        elif args.external_capture:
+            print('Now trigger ONE physical intervalometer cycle of eight photos. No software shutter will run.', flush=True)
+        else:
+            print('Preview-only test: keep the intervalometer idle; do not take photos.', flush=True)
+        deadline = time.monotonic() + args.seconds
+        while time.monotonic() < deadline and not stop.is_set():
+            if worker.failure:
+                raise RuntimeError(worker.failure)
+            try:
+                _, item, error = events.get(timeout=.2)
+                if error:
+                    raise RuntimeError(error)
+                if item and key(item) not in baseline and key(item) not in seen:
+                    seen.add(key(item))
+                    report['events'].append(item)
+                    print('New JPEG event:', item['name'], 'count:', len(seen), flush=True)
+            except queue.Empty:
+                pass
+        if args.external_capture and not stop.is_set():
+            final = wait_for_camera(worker.request('snapshot'), worker, adapter, stop, 'Final inventory')
+            new = ordered([i for i in final if key(i) not in baseline])
+            report['new_card_files'] = new
+            if len(new) != 8:
+                raise RuntimeError(f'Expected exactly eight new card JPEGs; found {len(new)}')
+            for index, item in enumerate(new, 1):
+                destination = evidence / f'A{index:02d}.jpg'
+                worker.request('download', item, destination).result(timeout=30)
+                validate_jpeg(destination)
+            report['exact_eight_downloaded'] = True
+        report['preview_frames'] = worker.frame_sequence
+        print('Preview frames received:', worker.frame_sequence, flush=True)
+        print('Observation finished; closing camera session. Browser preview will now become unavailable.', flush=True)
+    except ScanComplete:
+        pass
+    except Exception as exc:
+        report['error'] = f'{type(exc).__name__}: {exc}'
+        report['startup_stage'] = worker.stage
+        report['camera_stage'] = getattr(adapter, 'stage', None)
+        print('TEST STOPPED:', report['error'], flush=True)
+    finally:
+        report['scan_progress_at_stop'] = getattr(adapter, 'scan_progress', None)
+        report['preview_frames'] = worker.frame_sequence
+        worker.stopping.set()
+        worker.join(timeout=5)
+        if worker.is_alive():
+            report['cleanup_error'] = 'Camera worker did not stop. USB release is unconfirmed.'
+        elif worker.cleanup_error:
+            report['cleanup_error'] = worker.cleanup_error
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+        if worker.rejected_frame is not None:
+            raw_path = evidence / 'rejected-preview.bin'
+            raw_path.write_bytes(worker.rejected_frame)
+            report['rejected_preview'] = {'path': str(raw_path),
+                                          'bytes': len(worker.rejected_frame),
+                                          'first_32_bytes_hex': worker.rejected_frame[:32].hex()}
+            print('Rejected preview:', report['rejected_preview'], flush=True)
+        if trace_path.exists():
+            # Snapshot complete lines; the native call may still be in progress.
+            records = []
+            for line in trace_path.read_text().splitlines():
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+            completed = [r for r in records if r['state'] == 'done']
+            totals = {}
+            for record in completed:
+                entry = totals.setdefault(record['operation'], {'calls': 0, 'seconds': 0})
+                entry['calls'] += 1
+                entry['seconds'] += record['duration']
+            report['scan_totals'] = totals
+            report['slowest_scan_calls'] = sorted(completed, key=lambda r: r['duration'], reverse=True)[:5]
+            print('Scan totals:', json.dumps(totals), flush=True)
+            print('Last scan operation:', json.dumps(records[-1] if records else None), flush=True)
+        (evidence / 'report.json').write_text(json.dumps(report, indent=2))
+        print('Report:', evidence / 'report.json', flush=True)
+        if report.get('cleanup_error'):
+            print(report['cleanup_error'], flush=True)
+    return 1 if report.get('error') or report.get('cleanup_error') else 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -21,10 +21,13 @@ def validate_layout(layout):
 
 def validate_jpeg(path):
     with Image.open(path) as img:
-        if img.format != 'JPEG':
+        # Nikon JPEGs may contain MPF thumbnail entries and be identified
+        # by Pillow as MPO. Decode the primary photograph, never a thumbnail.
+        if img.format not in ('JPEG', 'MPO'):
             raise ValueError(f'Not a JPEG: {Path(path).name}')
         img.verify()
     with Image.open(path) as img:
+        img.seek(0)
         img.load()
         if min(img.size) < 100:
             raise ValueError(f'Image too small: {Path(path).name}')
@@ -58,6 +61,7 @@ def render_sheet(photos, overlays, layout, output):
         ordered = [photos[c][n] for n in (index * 2, index * 2 + 1) for c in ('A', 'B')]
         for row, path in enumerate(ordered):
             with Image.open(path) as img:
+                img.seek(0)
                 photo = ImageOps.fit(ImageOps.exif_transpose(img).convert('RGB'),
                                      (width, height), method=Image.Resampling.LANCZOS)
             strip.paste(photo, (layout['margin'], layout['top'] + row * (height + layout['gap'])))

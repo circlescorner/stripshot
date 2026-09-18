@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+export LC_ALL=C
+if ! python3 -c 'import gphoto2, flask, PIL' 2>/dev/null; then
+  echo 'Missing dependencies. In your Ubuntu terminal: sudo apt install python3-gphoto2 python3-flask python3-pil'
+  exit 2
+fi
+exec python3 tools/qualify-two-cameras "$@"
