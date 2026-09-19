@@ -148,7 +148,12 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
 
     def request(self, action, *args):
         future = Future()
-        if self.stop_event.is_set() or not self.thread.is_alive():
+        if action == 'application_control' and self.application_control and not self.thread.is_alive():
+            # A failed coordinator must not strand the operator's stop/restart controls.
+            # The lifecycle request still checks the saved batch and capture state.
+            try: future.set_result(self.application_control.request(args[0]))
+            except Exception as exc: future.set_exception(exc)
+        elif self.stop_event.is_set() or not self.thread.is_alive():
             future.set_exception(RuntimeError('Coordinator is stopped; inspect logs and restart'))
         else:
             self.commands.put((action, args, future))

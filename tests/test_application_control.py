@@ -64,6 +64,14 @@ class ApplicationControlTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'cleanup'):e.application_control.finish()
             execute.assert_not_called()
 
+    def test_failed_coordinator_can_stop_without_discarding_held_batches(self):
+        e,_=self.controlled();e.phase='error'
+        e.freeze(software=True)
+        with self.assertRaises(ValueError):e.request('application_control',{'action':'stop'}).result(1)
+        e.state['current']=None
+        self.assertTrue(e.request('application_control',{'action':'stop'}).result(1)['accepted'])
+        self.assertTrue(e.stop_event.is_set())
+
     def test_operator_auth_and_token_required(self):
         e,_=self.controlled(start=True)
         with patch.dict(os.environ,{'STRIPSHOT_OPERATOR_PASSWORD':'test-only-password'}):client=create_app(e).test_client()
