@@ -8,6 +8,9 @@ DS40_OFFSETS = [20, 15, 6, -2]
 
 
 def validate_software_printing(printer, demo=False):
+    from printer_quality import validate_quality
+    if 'quality' in printer:
+        validate_quality(printer['quality'])
     if not printer.get('enabled'):
         return
     from render import validate_strip_offsets, validate_vertical_offset

@@ -4,8 +4,8 @@ from pathlib import Path
 
 
 def validate_preview_fps(value, allow_disabled=True):
-    if type(value) not in (int, float) or not (1 <= value <= 15 or allow_disabled and value == 0):
-        raise ValueError('Preview FPS must be between 1 and 15' + (' (or 0 to disable)' if allow_disabled else ''))
+    if type(value) not in (int, float) or not (1 <= value <= 30 or allow_disabled and value == 0):
+        raise ValueError('Preview FPS must be between 1 and 30' + (' (or 0 to disable)' if allow_disabled else ''))
 
 
 def load_config(path):

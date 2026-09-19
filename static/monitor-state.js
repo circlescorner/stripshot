@@ -1,14 +1,15 @@
-'use strict';
+ 'use strict';
 (function(root){
-  function unavailableText(label,session,remaining) {
-    if(!session) return 'Reconnecting — please wait';
-    if(!session.active) return `Camera ${label} preview unavailable — check the operator dashboard`;
-    if(label==='A') return 'MalanaphyVick Wedding';
-    if(['capture_held','error','print_uncertain','reconnecting'].includes(session.phase)) return 'Session paused — please ask the attendant';
-    if(session.phase!=='capturing') return 'Making your strips…';
-    if(remaining!==null && remaining>0) return `${Math.ceil(remaining)} — get ready!`;
-    return `Taking photo${session.round ? ' '+session.round+' of 8' : ''}…`;
-  }
-  if(typeof module!=='undefined') module.exports=unavailableText;
-  else root.StripshotMonitorText=unavailableText;
+ function state(label,session,remaining,countdownCamera='B'){
+  if(!session)return {key:'disconnected',text:'Reconnecting — please wait'};
+  if(!session.active)return {key:'unavailable',text:`Camera ${label} preview unavailable — check the operator dashboard`};
+  if(label!==countdownCamera)return {key:'holding',text:'MalanaphyVick Wedding'};
+  if(['capture_held','error','print_uncertain','reconnecting'].includes(session.phase))return {key:'paused',text:'Session paused — please ask the attendant'};
+  if(session.phase!=='capturing')return {key:'rendering',text:'Making your strips…'};
+  if(remaining!==null&&remaining>0)return {key:'countdown',text:`${Math.ceil(remaining)} — get ready!`};
+  return {key:'capturing',text:`Taking photo${session.round?' '+session.round+' of 8':''}…`};
+ }
+ function text(label,session,remaining,countdownCamera){return state(label,session,remaining,countdownCamera).text;}
+ text.state=state;
+ if(typeof module!=='undefined')module.exports=text;else root.StripshotMonitorText=text;
 })(typeof window!=='undefined'?window:globalThis);

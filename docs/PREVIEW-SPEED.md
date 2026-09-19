@@ -1,36 +1,21 @@
-# Operator preview speed
+# Live preview target: 1–30 FPS
 
-Restart with the existing START-KIOSK.sh --live-printing command and reload the
-operator and both monitor pages. Under **Live preview speed**, choose the target
-FPS per camera and click **Save preview speed**. Try **5 FPS** first; then try 8
-or 10 only if actual FPS improves and the previews remain stable. The range is
-1–15 FPS. Both cameras use the same target and their actual recent FPS is displayed.
-The current 3 FPS default is preserved until the operator saves a change.
+In Operator → Live preview speed, choose a target and Save between sessions.
+The existing selected rate is preserved when the software is updated. Raising the
+maximum does not set the booth to 30. A disabled preview remains disabled.
 
-The setting applies without another restart, only while the cameras are ready
-with no active batch. It is saved atomically in operator-preview.json in the data
-directory and restored at startup/reconnect. The setting remains in the current data folder.
-The control requires operator authentication and its CSRF token in kiosk mode.
-Configurations with preview disabled must enable it at startup before live adjustment.
+The saved target applies to both camera workers and is restored at startup and
+reconnect. Operator reports **requested FPS and measured camera-frame FPS**. Camera
+transfer speed, USB bandwidth and decoding can limit what each screen displays.
+These figures are not a promise of 30 displayed frames per second.
 
-The owning workers still perform every USB operation. Their schedule now measures
-start-to-start preview intervals instead of adding a whole delay after each transfer.
-The browser uses the target reported in the JPEG response rather than a fixed
-200 ms delay. Browser fetches are sequential, cached frames remain bounded, and
-camera commands take priority over preview requests. Unavailable previews back off
-to 500 ms polling. Capture count, identities and uncertain-shutter/print protections
-are unchanged; faster preview recovery can affect the time between paired rounds.
+Workers pace start-to-start intervals and always check camera commands before
+requesting another preview. The browser fetches and decodes one frame at a time;
+its timer subtracts fetch/decode time from the target interval. There is no 15-FPS
+or 200-ms browser ceiling. Late results are fenced, timed-out requests aborted,
+object URLs revoked, and errors back off. Capture operations keep priority.
 
-Requested FPS is not guaranteed FPS. Camera transfer time, USB bandwidth and native
-live-view behavior can limit the result; higher targets also increase load/heat.
-No Nikon hardware test, exposure or print was performed for this change. Sustained
-native operation above the previously observed ~2.7 FPS remains unqualified.
-
-Validation: 95 Python tests passed in 64.772 seconds, including persistence, both
-workers, saved-frame response headers, configuration bounds, busy-batch rejection,
-failed-save preservation, and operator authentication/CSRF. Node Spacebar regression
-and both JavaScript syntax checks passed. An attempted browser check outlasted the
-self-terminating demo server, so no new visual browser verification is claimed.
-
-
-September 19 software update: see [calibration and display recovery](CALIBRATION-AND-LIVE-VIEW.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.
+Validation covers configuration and saved-setting limits, disabled defaults,
+failed saves, authentication, both workers, restart/reconnect, a deterministic
+30-FPS mock clock with command priority, stalled fetch/decode and URL cleanup.
+No physical captures or sustained 30-FPS hardware test were used.

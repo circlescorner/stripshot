@@ -40,9 +40,11 @@ def create_app(engine):
     @app.before_request
     def protect_actions():
         g.request_started = time.monotonic()
-        public = (request.path in ('/kiosk', '/api/kiosk/status', '/api/capture', '/favicon.ico', '/slideshow', '/api/slideshow', '/api/monitor/status')
+        public = (request.path in ('/kiosk', '/api/kiosk/status', '/api/capture', '/favicon.ico', '/slideshow', '/api/slideshow', '/api/monitor/status', '/api/screen-settings')
                   or request.path.startswith(('/static/', '/view/', '/api/preview/', '/slideshow/photos/'))
                   or request.path == '/' and kiosk_mode)
+        if request.path == '/api/screen-settings' and request.method != 'GET':
+            public = False
         if kiosk_mode and not public and not operator_authenticated():
             return Response('Operator sign-in required', 401,
                             {'WWW-Authenticate': 'Basic realm="Stripshot operator"'})
@@ -59,7 +61,7 @@ def create_app(engine):
         elapsed = time.monotonic() - g.request_started
         if elapsed >= 1:
             app.logger.warning('Slow request %s %s: %.3fs (%s)', request.method, request.path, elapsed, response.status_code)
-        response.headers['Cache-Control'] = 'no-store'
+        response.headers['Cache-Control'] = getattr(g, 'image_cache', 'no-store')
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
         return response
@@ -116,6 +118,17 @@ def create_app(engine):
         engine.request(action).result(timeout=130)
         return jsonify(ok=True)
 
+    @app.get('/api/screen-settings')
+    def screen_settings():
+        from screen_settings import FIELDS, FONTS
+        with engine.lock:
+            settings = dict(engine.screens)
+        return jsonify(settings=settings, labels={k:v[0] for k,v in FIELDS.items()}, samples={k:v[1] for k,v in FIELDS.items()}, fonts=FONTS)
+
+    @app.post('/api/screen-settings')
+    def save_screen_settings():
+        return jsonify(engine.request('screen_settings', request.get_json()).result(timeout=130))
+
     @app.get('/api/monitor/status')
     def monitor_status():
         return jsonify(engine.monitor_status())
@@ -128,15 +141,21 @@ def create_app(engine):
     def slideshow_catalog():
         with engine.lock:
             settings = dict(engine.display)
-        return jsonify(settings=settings, photos=engine.gallery.catalog(settings['source']))
+        current = request.args.get('current', '')
+        seed = request.args.get('seed', '')
+        move = request.args.get('move', '0')
+        if len(current) > 64 or len(seed) > 64 or move not in ('-1', '0', '1'):
+            raise ValueError('Invalid slideshow navigation')
+        return jsonify(engine.gallery.window(settings, current, int(move), seed))
 
     @app.get('/slideshow/photos/<batch_id>/<name>')
     def slideshow_photo(batch_id, name):
         try:
-            path = engine.gallery.image(batch_id,name)
+            path = engine.gallery.image(batch_id,name,request.args.get('size','display'))
         except (OSError, ValueError):
             abort(404)
-        return send_file(path,mimetype='image/jpeg')
+        g.image_cache = 'private, max-age=86400'
+        return send_file(path,mimetype='image/jpeg',conditional=True)
 
     @app.post('/api/slideshow-settings')
     def slideshow_settings():
@@ -145,13 +164,12 @@ def create_app(engine):
 
     @app.get('/photos')
     def saved_photos():
-        photos = engine.gallery.catalog('all')
-        sheets = engine.gallery.catalog('sheets')
-        batches = {}
-        for item in photos + sheets:
-            batches.setdefault(item['batch_id'], []).append(item)
+        page = request.args.get('page', '1')
+        source = request.args.get('source', 'all')
+        if not page.isdigit() or not 1 <= int(page) <= 1000000 or source not in ('all','sheets'):
+            raise ValueError('Invalid gallery page')
         return render_template('photos.html', folder=str(engine.root / 'batches'),
-                               batches=list(reversed(list(batches.items()))))
+                               **engine.gallery.page(int(page), source))
 
     @app.get('/photos/<batch_id>/<name>')
     def saved_original(batch_id, name):
@@ -164,6 +182,11 @@ def create_app(engine):
     @app.get('/api/calibration-target')
     def calibration_target():
         return jsonify(engine.calibration_print.latest())
+
+    @app.get('/calibration-targets/<ident>')
+    def calibration_view(ident):
+        engine.calibration_print.directory(ident)
+        return render_template('calibration_preview.html',ident=ident)
 
     @app.get('/calibration-targets/<ident>/sheet.png')
     def calibration_sheet(ident):
@@ -204,6 +227,17 @@ def create_app(engine):
         engine.request('session_settings',request.get_json()).result(timeout=130)
         return jsonify(ok=True)
 
+    @app.get('/api/printer-quality')
+    def printer_quality():
+        from printer_quality import quality_menu
+        with engine.lock:
+            printer = dict(engine.config['printer'])
+        return jsonify(quality_menu(printer))
+
+    @app.post('/api/printer-quality')
+    def save_printer_quality():
+        return jsonify(engine.request('printer_quality', request.get_json()).result(timeout=130))
+
     @app.post('/api/printing-settings')
     def printing_settings():
         return jsonify(engine.request('printing_settings', request.get_json()).result(timeout=130))
@@ -211,6 +245,10 @@ def create_app(engine):
     @app.post('/api/application-control')
     def application_control():
         return jsonify(engine.request('application_control', request.get_json()).result(timeout=130))
+
+    @app.post('/api/alignment-edge-preview')
+    def edge_preview():
+        return jsonify(engine.request('edge_preview',request.get_json()).result(timeout=130))
 
     @app.post('/api/overlay-settings')
     def overlay_settings():
@@ -233,6 +271,11 @@ def create_app(engine):
     def dry_run_view(ident):
         dry_run_directory(ident)
         return render_template('dry_run.html',ident=ident)
+
+    @app.get('/dry-runs/<ident>/preview.jpg')
+    def dry_run_preview(ident):
+        g.image_cache = 'private, max-age=86400'
+        return send_file(dry_run_directory(ident)/'preview.jpg',mimetype='image/jpeg',conditional=True)
 
     @app.get('/dry-runs/<ident>/sheet.png')
     def dry_run_sheet(ident):

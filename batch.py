@@ -18,6 +18,7 @@ from recovery import CameraRecovery
 from config import validate_preview_fps
 from gallery import Gallery
 from display_settings import DisplaySettings
+from screen_settings import ScreenSettings
 from operator_tools import OperatorTools
 from calibration_print import CalibrationPrint
 from scan_alignment import ScanAlignment
@@ -25,7 +26,7 @@ from scan_alignment import ScanAlignment
 LOG = logging.getLogger(__name__)
 
 
-class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
+class Engine(OperatorTools, DisplaySettings, ScreenSettings, CameraRecovery, SoftwareWorkflow):
     def __init__(self, config, adapters):
         self.config = config
         self.instance_id = uuid.uuid4().hex
@@ -50,6 +51,7 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
                        else copy.deepcopy(config['layout']))
         validate_layout(self.layout)
         self.initialize_display()
+        self.initialize_screens()
         self.initialize_operator_tools()
         self.gallery = Gallery(self.root)
         self.calibration_print = CalibrationPrint(self)
@@ -320,15 +322,28 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
         if action == 'scan_upload': return self.scan_alignment.upload(*args)
         if action == 'scan_propose': return self.scan_alignment.propose(args[0])
         if action == 'scan_apply': return self.scan_alignment.apply(args[0])
+        if action == 'edge_preview':
+            from edge_fit import measured_edge_fit
+            self.calibration_print.idle()
+            candidate = args[0]
+            if not isinstance(candidate,dict) or set(candidate) != {'baseline','measurements'}:
+                raise ValueError('Measurements require the current saved alignment')
+            if candidate['baseline'] != self.overlay_settings:
+                raise ValueError('Saved alignment changed; reload and measure a sheet made with those values')
+            return measured_edge_fit(copy.deepcopy(self.overlay_settings), candidate['measurements'])
         if action == 'overlay_settings': return self.save_overlay_settings(args[0])
         if action == 'calibration_prepare': return self.calibration_print.prepare()
         if action == 'calibration_print': return self.calibration_print.print_once(args[0]['id'])
         if action == 'calibration_measure': return self.calibration_print.measure(args[0])
         if action == 'calibration_acknowledge': return self.calibration_print.acknowledge(args[0]['id'])
+        if action == 'printer_quality':
+            return self.save_printer_quality(args[0])
         if action == 'printing_settings':
             return self.set_printing(args[0])
         if action == 'dry_run':
             return self.render_dry_run()
+        if action == 'screen_settings':
+            return self.save_screens(args[0])
         if action == 'slideshow_settings':
             return self.save_display(args[0])
         if action == 'calibration':

@@ -29,6 +29,8 @@ async function refresh() {
   refreshing = true;
   try {
     const state = await requestJson('/api/status');
+    if (typeof updatePrinterQualityState === 'function') updatePrinterQualityState(state);
+    if (state.overlay_settings && typeof updateEdgeBaseline === 'function') updateEdgeBaseline(state.overlay_settings);
     if (state.overlay_settings && typeof updateScanAlignmentSettings === 'function') updateScanAlignmentSettings(state.overlay_settings);
     if (typeof updateApplicationControls === 'function') updateApplicationControls(state);
     if ($('printing-toggle')) {
@@ -60,7 +62,7 @@ async function refresh() {
     if ($('preview-form')) {
       if (!previewLoaded) { $('preview-fps').value = state.preview_fps; previewLoaded = true; }
       $('preview-save').disabled = busy || state.phase !== 'watching' || Boolean(state.current);
-      $('preview-measured').textContent = `Saved target: ${state.preview_fps} FPS · Actual A: ${state.previews.A.recent_fps} FPS · B: ${state.previews.B.recent_fps} FPS`;
+      $('preview-measured').textContent = `Saved target: ${state.preview_fps} FPS · Measured camera A: ${state.previews.A.recent_fps} FPS · B: ${state.previews.B.recent_fps} FPS`;
     }
     if (!extrasLoaded) {
       $('countdown-seconds').value=state.countdown_seconds;
@@ -107,15 +109,18 @@ async function refresh() {
       const labels = {dry_run:'Your sheet is ready.', submitted:'One sheet submitted.', acknowledged_without_retry:'Print acknowledged.'};
       $('last-title').textContent = labels[state.last.status] || 'Batch complete.';
       $('last-detail').textContent = `16 photos · ${state.last.job_id || (state.last.status === 'dry_run' ? 'Dry run — no paper used' : 'No automatic reprint')}`;
-      if (!state.last.preview_available) { $('last-preview').hidden = true; lastPreview = ''; }
+      if (!state.last.preview_available) { $('last-preview').hidden = true; if ($('last-preview-link')) $('last-preview-link').hidden = true; lastPreview = ''; }
       if (state.last.preview_available && lastPreview !== state.last.id) {
         lastPreview = state.last.id;
+        const link = $('last-preview-link');
+        if (link) { link.href = '/photos/' + encodeURIComponent(lastPreview) + '/sheet.png'; link.hidden = false; }
         $('last-preview').src = `/batches/${encodeURIComponent(lastPreview)}/preview.jpg`;
         $('last-preview').hidden = false;
       }
     }
   } catch (error) {
     printingEnabled = null;
+    if (typeof updatePrinterQualityState === 'function') updatePrinterQualityState({phase:'disconnected'});
     if ($('printing-toggle')) $('printing-toggle').disabled = true;
     $('phase').textContent = 'Dashboard disconnected';
     $('phase-detail').textContent = 'Reconnecting… Check the running application if this persists.';

@@ -23,3 +23,4 @@ jobs:
       - run: node tests/resilient-loop.test.cjs
       - run: node tests/monitor-recovery.test.cjs
       - run: node tests/browser-controls.test.cjs
+      - run: node tests/image-window.test.cjs

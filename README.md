@@ -270,7 +270,7 @@ reconnect, and nonblocking dashboard polling are described in
 remains the default; duplicate/omitted selections are rejected.
 
 [Live preview speed](docs/PREVIEW-SPEED.md) can now be saved in the operator dashboard
-(1–15 FPS target for both cameras, with actual FPS shown). Start with 5 FPS; hardware
+(1–30 FPS target for both cameras, with actual FPS shown). Start with 5 FPS; hardware
 may deliver less than the requested rate. Change only between batches.
 
 [Operator preview and slideshow](docs/OPERATOR-PREVIEW-AND-SLIDESHOW.md) documents the
@@ -286,3 +286,17 @@ submit a print job. See [printer status details](docs/CALIBRATION-AND-LIVE-VIEW.
 
 [Desktop startup and page links](docs/DESKTOP-START.md) describes the desktop launcher,
 operator navigation and the fresh local photo collection.
+
+
+### Current Operator controls
+
+- [Printer quality](docs/PRINTER-QUALITY.md): saved DS40 brightness, contrast,
+  saturation and channel tone, with a quality-only baseline.
+- [Guest screen text and countdown routing](docs/SCREEN-TEXT.md): per-message
+  wording/style, and a choice of Camera A or B for 3, 2, 1.
+- [Photo and sheet review](docs/PHOTO-REVIEW.md): bounded thumbnails, keyboard
+  review, cached slideshow windows and full-resolution access.
+- [Measured white-edge refinement](docs/STRIP-ALIGNMENT.md#final-adjustment-from-measured-white-edges):
+  a review-only proposal into the same common strip alignment, without cropping.
+- [Preview speed](docs/PREVIEW-SPEED.md): up to 30 requested FPS; existing choice
+  preserved and actual camera-frame FPS shown.

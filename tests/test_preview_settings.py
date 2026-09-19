@@ -35,7 +35,7 @@ class PreviewSettingsTests(unittest.TestCase):
     def test_invalid_busy_and_failed_save_leave_rate_unchanged(self):
         self.cfg['preview_fps'] = 3
         e, _ = self.engine(start=False); e.phase = 'watching'
-        for candidate in (None, {}, {'fps':0}, {'fps':16}, {'fps':True}, {'fps':float('nan')}, {'fps':'5'}, {'fps':5,'extra':1}):
+        for candidate in (None, {}, {'fps':0}, {'fps':31}, {'fps':True}, {'fps':float('nan')}, {'fps':'5'}, {'fps':5,'extra':1}):
             with self.assertRaises(ValueError): e.action('preview_settings',candidate)
         with patch('batch.save_json',side_effect=OSError('disk full')):
             with self.assertRaises(OSError): e.action('preview_settings',{'fps':5})
@@ -60,6 +60,35 @@ class PreviewSettingsTests(unittest.TestCase):
         self.assertEqual(e.config['preview_fps'],5)
 
     def test_configuration_bounds_preserve_disabled_default(self):
-        for value in (0,1,3,5,10,15): validate_preview_fps(value)
-        for value in (-1,.5,16,float('inf'),False):
+        for value in (0,1,3,5,10,15,30): validate_preview_fps(value)
+        for value in (-1,.5,31,float('inf'),False):
             with self.assertRaises(ValueError): validate_preview_fps(value)
+
+class ThirtyFpsPacingTests(unittest.TestCase):
+    def test_mock_clock_30fps_and_camera_commands_take_priority(self):
+        import queue
+        from unittest.mock import MagicMock
+        from camera import CameraWorker
+        from test_preview import jpeg
+        clock = [0.0]
+        operations = []
+        class Stop:
+            stopped = False
+            def is_set(self):return self.stopped or clock[0] >= .18
+            def set(self):self.stopped = True
+            def wait(self,seconds):clock[0] += seconds
+        adapter=MagicMock();adapter.start_preview.return_value=jpeg()
+        worker=CameraWorker('A',adapter,queue.Queue(),mode='software',preview_fps=30,baseline_required=False)
+        worker.stopping=Stop()
+        def frame():
+            operations.append(('frame',clock[0]))
+            if len(operations)==1:worker.request('probe')
+            return jpeg()
+        adapter.preview.side_effect=frame
+        adapter.probe.side_effect=lambda:operations.append(('command',clock[0]))
+        with patch('camera.time.monotonic',side_effect=lambda:clock[0]):worker.run()
+        self.assertEqual([op[0] for op in operations[:3]],['frame','command','frame'])
+        frames=[at for op,at in operations if op=='frame']
+        self.assertGreaterEqual(len(frames),5)
+        for a,b in zip(frames,frames[1:]):self.assertAlmostEqual(b-a,1/30,places=6)
+        self.assertEqual(worker.commands.qsize(),0)

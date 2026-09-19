@@ -173,7 +173,7 @@ class PreviewTests(unittest.TestCase):
     def test_invalid_rates_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'config.json'
-            for fps in [-1, .1, 16, True, '3', float('nan')]:
+            for fps in [-1, .1, 31, True, '3', float('nan')]:
                 save_json(path, {'demo': True, 'preview_fps': fps})
                 with self.assertRaises(ValueError):
                     load_config(path)

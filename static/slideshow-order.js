@@ -12,7 +12,9 @@
       const current=this.current;
       const existing=new Set(this.ids);
       if (shuffle===this.shuffle && ids.length===this.ids.length && ids.every(id=>existing.has(id))) return;
-      this.shuffle=shuffle; this.ids=shuffle ? this.shuffled(ids) : [...ids];
+      const allowed=new Set(ids);
+      this.ids=shuffle && this.shuffle ? [...this.ids.filter(id=>allowed.has(id)),...this.shuffled(ids.filter(id=>!existing.has(id)))] : shuffle ? this.shuffled(ids) : [...ids];
+      this.shuffle=shuffle;
       this.index=Math.max(0,this.ids.indexOf(current));
     }
     move(direction) {

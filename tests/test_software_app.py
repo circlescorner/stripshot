@@ -50,6 +50,12 @@ class SoftwareAppTests(unittest.TestCase):
         save_json(self.cfgpath, {'demo': True, 'camera_mode': 'software'})
         self.cfg = load_config(self.cfgpath)
         self.engines = []
+        from printer_quality import QUALITY_CONTEXT, QUALITY_FIELDS, QUALITY_VALUES
+        choices = {k:{v} for k,v in QUALITY_CONTEXT.items()}
+        choices.update({k:set(QUALITY_VALUES) for k in QUALITY_FIELDS})
+        self.driver_patch = patch('printer_quality.driver_choices',return_value=choices)
+        self.driver_patch.start()
+        self.addCleanup(self.driver_patch.stop)
 
     def tearDown(self):
         for e in self.engines:

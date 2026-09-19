@@ -49,3 +49,25 @@ composition, cover all PNG edges and transparent artwork, ignore legacy photo
 offsets in the new path, handle strips without artwork, preserve frozen legacy
 batches and verify dry-run provenance. No physical camera capture or print is
 part of this validation.
+
+## Final adjustment from measured white edges
+
+Inside Advanced: manual strip alignment, open **Fill measured white edges on a
+finished strip**. Use a strip printed with the currently saved settings. Measure
+left, right, top and bottom from paper edge to the outside of the complete design,
+in millimeters. Enter zero to leave an edge alone, confirm the sheet uses the
+current alignment, then calculate. This is a review-only proposal.
+
+The proposal expands the common composition toward each measured edge, changing
+width/height and shifting its center only by the difference between opposing
+measurements. It edits the existing canonical fit; there is no extra rendering
+transform or separately persisted correction. **Use proposal in manual fields
+below** copies it into the existing form. Review, then **Save strip alignment**
+and use the paper-free preview. No values are automatically applied.
+
+Expansion is capped at the nominal strip canvas to retain every PNG edge. Any
+unfillable amount is reported rather than cropped. A white area inside artwork
+or photo-layout margins is a design issue, not an external paper edge; this tool
+cannot remove it. Values use nominal 300 DPI, so cutter offsets, paper geometry
+and physical scaling may leave residual borders. A fresh attended print/scan
+check is still necessary before claiming borderless physical output.

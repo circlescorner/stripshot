@@ -21,8 +21,16 @@ class Printer:
     def submit(self, sheet, batch_id):
         if not self.config['enabled']:
             return {'status': 'dry_run', 'job_id': None}
+        quality_options = {}
+        if 'quality' in self.config:
+            from qualification import DS40_OPTIONS
+            from printer_quality import QUALITY_CONTEXT, verify_driver, driver_choices
+            if self.config.get('options') != DS40_OPTIONS:
+                raise ValueError('DS40 quality settings require unchanged qualified media and geometry')
+            verify_driver(self.config['quality'], driver_choices(self.config.get('queue')))
+            quality_options = {**QUALITY_CONTEXT, **self.config['quality']}
         command = ['lp', '-d', self.config['queue'], '-n', '1', '-t', 'Stripshot ' + batch_id, '-o', 'number-up=1']
-        for name, value in self.config['options'].items():
+        for name, value in {**self.config['options'], **quality_options}.items():
             command += ['-o', f'{name}={value}']
         command += ['--', str(sheet)]
         result = subprocess.run(command, capture_output=True, text=True, timeout=45,

@@ -1,9 +1,14 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Stripshot · Saved photos</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/photos.css"></head>
-<body><main><header><a href="/operator">← Operator</a></header><h1>Saved photos</h1>
-<p class="folder">Folder: {{ folder }}</p><p>Completed sessions below. Click a photo or sheet to view its full-resolution file.</p>
-{% for batch_id,items in batches %}<section class="panel"><h2>{{ batch_id }}</h2><div class="photo-grid">
-{% for item in items %}{% set name=item.id.split('/')[-1] %}<a href="/photos/{{ batch_id }}/{{ name }}" target="_blank" rel="noopener"><img src="{{ item.url }}" alt="{{ name }}" loading="lazy"><span>{{ name }}</span></a>{% endfor %}
-</div></section>{% else %}<p>No completed sessions yet.</p>{% endfor %}
-<p>Files from unfinished sessions remain in their session folders.</p></main></body></html>
+<title>Stripshot · Saved photos</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/photos.css">
+<script defer src="/static/image-window.js"></script><script defer src="/static/photo-review.js"></script></head>
+<body><main><header><a class="brand" href="/operator">stripshot<span>®</span></a><a href="/operator">← Operator</a><a href="/slideshow">Slideshow ↗</a></header>
+<div class="library-heading"><div><p class="eyebrow">THE MOMENTS, KEPT</p><h1>Saved photos<span> & sheets.</span></h1></div><p>{{ total }} completed {{ 'session' if total == 1 else 'sessions' }}</p></div>
+<nav class="library-tabs" aria-label="Library view"><a href="/photos" {% if source == 'all' %}aria-current="page"{% endif %}>Photos & sheets</a><a href="/photos?source=sheets" {% if source == 'sheets' %}aria-current="page"{% endif %}>Finished sheets</a><a href="?source={{ source }}&page={{ page }}">Refresh library</a></nav>
+<p class="library-hint">Select an image to review. Use the arrow keys to browse; full-resolution files are always available.</p>
+{% for batch_id,items in batches %}<section class="session"><div class="session-heading"><h2>Session {{ total - (page-1)*3 - loop.index0 }}</h2><time data-timestamp="{{ items[0].completed_at }}"></time><details><summary>Session ID</summary><code>{{ batch_id }}</code></details></div><div class="photo-grid">
+{% for item in items %}<a class="photo-card {{ 'sheet-card' if item.id.endswith('/sheet.png') else '' }}" href="{{ item.original }}" data-display="{{ item.url }}" data-caption="{{ item.caption }}" target="_blank" rel="noopener"><img src="{{ item.thumbnail }}" alt="{{ item.caption }}" loading="lazy" decoding="async" width="480" height="360"><span>{{ item.caption }}<span aria-hidden="true">↗</span></span></a>{% endfor %}
+</div></section>{% else %}<div class="library-empty"><h2>Your first memories will appear here.</h2><p>No completed {{ 'sheets' if source == 'sheets' else 'sessions' }} yet. This page refreshes when you choose Refresh library.</p></div>{% endfor %}
+<nav class="pagination" aria-label="Library pages">{% if page>1 %}<a href="?page={{ page-1 }}&source={{ source }}">← Newer sessions</a>{% endif %}<span>Page {{ page }} of {{ pages }}</span>{% if page<pages %}<a href="?page={{ page+1 }}&source={{ source }}">Older sessions →</a>{% endif %}</nav>
+<details class="folder"><summary>Local photo folder</summary><p>{{ folder }}</p><p>Originals and unfinished session records remain on this computer.</p></details><footer>STRIPSHOT / MADE TO KEEP</footer>
+{% include 'review_dialog.html' %}</main></body></html>

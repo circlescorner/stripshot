@@ -28,6 +28,15 @@ class OperatorTools:
         if self.session_path.exists():
             self.countdown_seconds = json.loads(self.session_path.read_text())['countdown_seconds']
         self.validate_countdown(self.countdown_seconds)
+        self.quality_path = self.root / 'operator-printer-quality.json'
+        from printer_quality import QUALITY_BASELINE, validate_quality
+        from qualification import DS40_OPTIONS
+        if self.quality_path.exists():
+            quality = json.loads(self.quality_path.read_text())
+            validate_quality(quality)
+            self.config['printer']['quality'] = quality
+        elif self.config['printer'].get('queue') == 'DNP_DS40' and self.config['printer'].get('options') == DS40_OPTIONS:
+            self.config['printer'].setdefault('quality', copy.deepcopy(QUALITY_BASELINE))
         self.next_photo = None
         self.round_number = None
 
@@ -88,6 +97,27 @@ class OperatorTools:
             self.config['printer'] = printer
             self.printer = Printer(printer)
             return {'printing_enabled': printer['enabled']}
+
+    def save_printer_quality(self, candidate):
+        from printer_quality import validate_quality, verify_driver, driver_choices
+        from qualification import DS40_OPTIONS
+        from printer import Printer
+        validate_quality(candidate)
+        with self.lock:
+            if (self.phase != 'watching' or self.state['current']
+                    or any(not f.done() for f in self.capture_futures)):
+                raise ValueError('Save printer quality only between sessions, with no active or held batch')
+            printer = copy.deepcopy(self.config['printer'])
+            if printer.get('queue') != 'DNP_DS40' or printer.get('options') != DS40_OPTIONS:
+                raise ValueError('Photo quality requires the qualified DS40 media and cut profile')
+            verify_driver(candidate, driver_choices(printer['queue']))
+            printer['quality'] = copy.deepcopy(candidate)
+            if self.software:
+                validate_software_printing(printer, self.config['demo'])
+            save_json(self.quality_path, candidate)
+            self.config['printer'] = printer
+            self.printer = Printer(printer)
+        return {'saved': copy.deepcopy(candidate)}
 
     def render_dry_run(self):
         with self.lock:
