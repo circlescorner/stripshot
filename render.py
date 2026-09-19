@@ -16,32 +16,32 @@ def default_overlay_settings():
 
 def validate_overlay_settings(settings):
     if not isinstance(settings, list) or len(settings) != 4:
-        raise ValueError('PNG settings need four strips')
+        raise ValueError('Alignment settings need four strips')
     for strip in settings:
         if (not isinstance(strip, dict) or not {'scale_x_percent', 'offset_x_px'} <= set(strip)
                 or set(strip) - {'scale_x_percent', 'offset_x_px', 'scale_y_percent', 'offset_y_px'}):
-            raise ValueError('Each PNG needs scale_x_percent and offset_x_px')
+            raise ValueError('Each strip needs scale_x_percent and offset_x_px')
         scale, offset = strip['scale_x_percent'], strip['offset_x_px']
         if type(scale) not in (int, float) or not math.isfinite(scale) or not 10 <= scale <= 100:
-            raise ValueError('PNG horizontal scale must be between 10 and 100 percent so the full PNG fits')
+            raise ValueError('Strip horizontal scale must be between 10 and 100 percent so the full design fits')
         if type(offset) is not int or not -600 <= offset <= 600:
-            raise ValueError('PNG horizontal offset must be a whole number between -600 and 600 pixels')
+            raise ValueError('Strip horizontal offset must be a whole number between -600 and 600 pixels')
         width = int(STRIP[0] * scale / 100 + 0.5)
         left = (STRIP[0] - width) // 2
         if not -left <= offset <= STRIP[0] - width - left:
-            raise ValueError(f'PNG offset must be between {-left} and {STRIP[0] - width - left} pixels '
-                             f'at {scale}% width; shrink the PNG to make room. PNGs are never cropped')
+            raise ValueError(f'Strip offset must be between {-left} and {STRIP[0] - width - left} pixels '
+                             f'at {scale}% width; shrink the strip to make room. The full design is kept')
         scale_y, offset_y = strip.get('scale_y_percent', 100), strip.get('offset_y_px', 0)
         if type(scale_y) not in (int, float) or not 10 <= scale_y <= 100:
-            raise ValueError('PNG vertical scale must be between 10 and 100 percent')
+            raise ValueError('Strip vertical scale must be between 10 and 100 percent')
         height = int(STRIP[1] * scale_y / 100 + 0.5)
         top = (STRIP[1] - height) // 2
         if type(offset_y) is not int or not -top <= offset_y <= STRIP[1] - height - top:
-            raise ValueError('PNG vertical offset would crop the artwork; reduce the offset or height')
+            raise ValueError('Strip vertical offset would crop the design; reduce the offset or height')
 
 
 def position_overlay(overlay, settings):
-    """Resize the entire PNG horizontally and place it wholly inside its strip."""
+    """Fit a complete canvas inside one strip without clipping any edge."""
     validate_overlay_settings([settings] * 4)
     width = int(STRIP[0] * settings['scale_x_percent'] / 100 + 0.5)
     height = int(STRIP[1] * settings.get('scale_y_percent', 100) / 100 + 0.5)
@@ -117,7 +117,10 @@ def normalize_overlay(content):
 
 
 def render_sheet(photos, overlays, layout, output, strip_offsets_px=None, sheet_offset_y_px=0,
-                 overlay_settings=None):
+                 overlay_settings=None, alignment_mode='legacy'):
+    # Unversioned, already frozen batches must keep their original geometry.
+    if alignment_mode not in ('legacy', 'whole_strip'):
+        raise ValueError('Unknown strip alignment mode')
     validate_layout(layout)
     artwork_settings = default_overlay_settings() if overlay_settings is None else overlay_settings
     validate_overlay_settings(artwork_settings)
@@ -147,15 +150,20 @@ def render_sheet(photos, overlays, layout, output, strip_offsets_px=None, sheet_
                 photo = photo.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
             strip.paste(photo, (layout['margin'] + (width - scaled_width) // 2,
                                layout['top'] + row * (height + layout['gap']) + (height - scaled_height) // 2))
-        # Calibrate the photos before placing artwork. PNG edges must never be
-        # cut off by either horizontal or vertical printer calibration.
         calibrated = Image.new('RGBA', STRIP, 'white')
-        calibrated.paste(strip, (offsets[index], sheet_offset_y_px))
+        calibrated.paste(strip, (offsets[index], sheet_offset_y_px) if alignment_mode == 'legacy' else (0, 0))
         if overlays[index] is not None:
             with Image.open(overlays[index]) as overlay:
                 if overlay.size != STRIP:
                     raise ValueError('Overlay has incorrect dimensions')
-                calibrated = Image.alpha_composite(calibrated, position_overlay(overlay, artwork_settings[index]))
+                artwork = (position_overlay(overlay, artwork_settings[index])
+                           if alignment_mode == 'legacy' else overlay.convert('RGBA'))
+                calibrated = Image.alpha_composite(calibrated, artwork)
+        if alignment_mode == 'whole_strip':
+            # Compose first, then fit photos and artwork together exactly once.
+            # White backing matters: position_overlay leaves transparent margins.
+            calibrated = Image.alpha_composite(Image.new('RGBA', STRIP, 'white'),
+                                               position_overlay(calibrated, artwork_settings[index]))
         sheet.paste(calibrated.convert('RGB'), (index * 600, 0))
     buf = io.BytesIO()
     sheet.save(buf, format='PNG', dpi=(300, 300))

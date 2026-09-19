@@ -1,7 +1,9 @@
-# Scan to align PNG borders
+# Scan to align the finished strip
 
-Use **Operator → Scan to align PNG borders** to measure where each PNG should sit
-relative to the paper's cut edges. Photo layout and photo calibration are unchanged.
+Use **Operator → Strip alignment — photos + PNG** to measure where each finished strip should sit
+relative to the paper's cut edges. Photos and PNG are composed first and fitted
+together once. Keep the design margins unchanged. See [how the controls fit
+together](STRIP-ALIGNMENT.md).
 
 1. Click **Prepare scan reference — no print**, inspect the preview, then click
    **Print one scan reference sheet**. Confirm the single physical print.
@@ -14,18 +16,18 @@ relative to the paper's cut edges. Photo layout and photo calibration are unchan
 4. Inspect the green outline in each scan preview. It must follow the actual paper
    edge. Wrong strips, cropped scans, poor reference detection, excessive skew and
    unclear paper outlines are rejected instead of producing a guessed correction.
-5. Leave **Minimum border clearance** at 0.5 mm initially, then click **Calculate
+5. Leave **Whole design distance from cut edge** at 0.5 mm initially, then click **Calculate
    alignment from scans**. The review shows scanned and predicted margins. Nothing
    is applied yet. If available print area limits the fit, equal margins may be
    larger than the requested clearance.
-6. Check the four paper outlines, tick the review checkbox, and click **Apply this
-   PNG alignment**. Each PNG's width, height and X/Y position are saved together.
+6. Check the four paper outlines, tick the review checkbox, and click **Apply to
+   photos + PNG**. Each complete strip's width, height and X/Y position are saved together.
    The entire PNG is resized, never cropped. Uploaded artwork remains unchanged.
 7. Prepare, print and scan a **fresh reference** to verify the result. Its faint
-   green outline represents the saved PNG extent. The next review's scanned
+   green outline represents the saved whole-design extent. The next review's scanned
    margins show the result of the previous correction.
 
-This measures the complete PNG canvas against the cut paper, not individual
+This measures the complete composed canvas against the cut paper, not individual
 features inside the design. Millimeter margins assume the nominal 300-DPI output.
 Accuracy is limited by scanning, edge detection and printer/cutter repeatability;
 a successful software analysis is not a guarantee of a perfect physical print.
@@ -42,14 +44,15 @@ Scans, annotated previews and measured bounds are retained with their calibratio
 target. Replacing an upload retains the old evidence and invalidates the previous
 proposal. Applied settings persist in `operator-overlays.json`; each new batch
 freezes them. Existing settings without vertical fields retain 100% height and
-zero vertical offset. The manual PNG cards expose **Vertical fit** for reviewing
-or editing these settings, and enforce the same no-crop bounds.
+zero vertical offset. **Advanced: manual strip alignment** edits those same values and enforces the
+same no-crop bounds. Saved legacy photo-centering offsets are retained for old
+batches only; they are not added to the new common fit.
 
 ## Implementation and checks
 
 Numbered references use unique marker IDs from OpenCV's 5×5 dictionary. Known marker
 corners establish an affine mapping from the scan to the original strip coordinates;
-the detected paper outline determines a conservative safe rectangle. PNG placement
+the detected paper outline determines a conservative safe rectangle. Whole-strip placement
 fits symmetrically inside both that rectangle and its nominal sheet strip. The
 detector rejects missing/mismatched marks, low resolution, mirroring, excessive
 stretch/shear, inconsistent reference fits, missing edges and excessive cut skew.
@@ -59,12 +62,10 @@ Requires `opencv-python-headless` and its NumPy dependency in the application's
 Python environment (`pip install -r requirements.txt`). There is no scanner device
 driver integration: use the scanner's normal software and upload the resulting file.
 
-145 Python tests and all five Node suites passed. New tests recover known print
-displacements from rotated, 300/600-DPI synthetic scans, preserve full PNG area,
-and reject wrong targets, cropped images, stale proposals, changed settings and
-active sessions. An isolated browser check uploaded all four synthetic scans,
-calculated and reviewed the correction, and applied it without console errors.
-No physical capture, print, or real-data alignment changes were made during testing.
+Tests recover known print displacements from rotated 300/600-DPI scans and reject
+wrong targets, cropped images, stale proposals, changed settings and active
+sessions. Rendering regression coverage verifies the combined photos and PNG move
+as one piece. Hardware print/scan verification remains a separate step.
 
 ## Bright backing and misleading crop errors
 
@@ -77,5 +78,6 @@ edges. Synthetic rotated yellow, cyan and magenta backing scans also recover
 known offsets. White backing and actual cropping still fail with wording that
 explains both possibilities. Dark matte backing remains the preferred setup.
 
-This analysis was performed offline using the saved reference markers. It did not
-upload to the running booth, apply a correction, print, or modify saved scan data.
+The original supplied scan was subsequently accepted by the running booth without
+editing its image. All four accepted scans and the operator-applied fit remain
+available for whole-strip alignment; no second correction is stacked on them.

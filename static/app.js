@@ -29,6 +29,7 @@ async function refresh() {
   refreshing = true;
   try {
     const state = await requestJson('/api/status');
+    if (state.overlay_settings && typeof updateScanAlignmentSettings === 'function') updateScanAlignmentSettings(state.overlay_settings);
     if (typeof updateApplicationControls === 'function') updateApplicationControls(state);
     if ($('printing-toggle')) {
       printingEnabled = state.printing_enabled;
@@ -62,8 +63,6 @@ async function refresh() {
       $('preview-measured').textContent = `Saved target: ${state.preview_fps} FPS · Actual A: ${state.previews.A.recent_fps} FPS · B: ${state.previews.B.recent_fps} FPS`;
     }
     if (!extrasLoaded) {
-      state.calibration.strip_offsets_px.forEach((value,i)=>{ $('calibration-'+(i+1)).value=value; });
-      $('calibration-y').value=state.calibration.sheet_offset_y_px ?? 0;
       $('countdown-seconds').value=state.countdown_seconds;
       $('slideshow-seconds').value=state.slideshow.seconds;
       $('slideshow-source').value=state.slideshow.source;
@@ -138,7 +137,6 @@ async function post(url, body, json = false) {
   finally {
     busy = false;
     buttons.forEach(([button, disabled]) => button.disabled = disabled);
-    if (typeof refreshCalibrationButtons === 'function') refreshCalibrationButtons();
     if (typeof refreshScanButtons === 'function') refreshScanButtons();
     await refresh();
   }
@@ -214,15 +212,15 @@ function previewOverlay(i) {
   const height = Math.round(1800 * scaleY / 100), top = Math.floor((1800-height)/2);
   yInput.min = -top; yInput.max = 1800-height-top;
   if (!Number.isInteger(offsetY) || offsetY < -top || offsetY > 1800-height-top) {
-    yInput.setCustomValidity('This vertical offset would crop the PNG. Reduce the offset or height.');
+    yInput.setCustomValidity('This vertical offset would crop the finished strip. Reduce the offset or height.');
     return false;
   }
   const left = Math.floor((600 - width) / 2);
   offsetInput.min = -left;
   offsetInput.max = 600 - width - left;
-  $('overlay-fit-' + i).textContent = `Allowed offset: ${-left} to ${600 - width - left} pixels. The full PNG stays visible.`;
+  $('overlay-fit-' + i).textContent = `Allowed offset: ${-left} to ${600 - width - left} pixels. Photos and PNG stay together.`;
   if (!Number.isInteger(offset) || offset < -left || offset > 600 - width - left) {
-    offsetInput.setCustomValidity('This offset would crop the PNG. Reduce the offset or shrink the PNG to make room.');
+    offsetInput.setCustomValidity('This offset would crop the finished strip. Reduce the offset or shrink the strip to make room.');
     return false;
   }
   // Match the renderer's whole-pixel centering, even at odd widths.
@@ -235,17 +233,10 @@ for (let i = 1; i <= 4; i++) {
   for (const field of ['scale', 'offset', 'scale-y', 'offset-y']) $('overlay-' + field + '-' + i).oninput = () => {
     const fits = previewOverlay(i);
     $('overlay-settings-message').textContent = fits
-      ? 'Unsaved PNG adjustments. Save to apply to future sheets.'
-      : `PNG ${i} does not fit. Reduce the offset or shrink its width; the preview keeps the last valid position.`;
+      ? 'Unsaved strip alignment. Save to apply to future sheets.'
+      : `Strip ${i} does not fit. Reduce the offset or shrink its width; the preview keeps the last valid position.`;
   };
-  $('overlay-reset-' + i).onclick = () => {
-    $('overlay-scale-' + i).value = 100;
-    $('overlay-offset-' + i).value = 0;
-    $('overlay-scale-y-' + i).value = 100;
-    $('overlay-offset-y-' + i).value = 0;
-    previewOverlay(i);
-    $('overlay-settings-message').textContent = `PNG ${i} reset in preview. Save to apply.`;
-  };
+
 }
 $('overlay-settings-form').onsubmit = async event => {
   event.preventDefault();
@@ -260,15 +251,11 @@ $('overlay-settings-form').onsubmit = async event => {
     ...(Number($('overlay-scale-y-' + i).value) !== 100 || Number($('overlay-offset-y-' + i).value) !== 0
       ? {scale_y_percent: Number($('overlay-scale-y-' + i).value), offset_y_px: Number($('overlay-offset-y-' + i).value)} : {}),
   }));
-  $('overlay-settings-message').textContent = 'Saving PNG adjustments…';
+  $('overlay-settings-message').textContent = 'Saving strip alignment…';
   const ok = await post('/api/overlay-settings', JSON.stringify(settings), true);
   $('overlay-settings-message').textContent = ok
-    ? 'PNG adjustments saved for future sheets and dry runs; retained after restart.'
+    ? 'Strip alignment saved for photos and PNG together. These are the same values used by scan alignment.'
     : 'Save not confirmed. ' + actionError;
-};
-$('layout-larger').onclick = () => {
-  fillLayout({margin:36,top:36,bottom:180,gap:24,photo_scale:95});
-  $('layout-message').textContent = 'Suggested larger margins loaded. Save to apply to the next batch.';
 };
 $('layout-form').onsubmit = async event => {
   event.preventDefault();
@@ -291,12 +278,6 @@ if ($('preview-form')) $('preview-form').onsubmit = async event => {
   $('preview-message').textContent = ok ? 'Saved. Both previews now use this target; retained after restart.' : 'Not saved. ' + actionError;
 };
 
-$('calibration-default').onclick=()=>{[20,15,6,-2].forEach((v,i)=>{$('calibration-'+(i+1)).value=v;});$('calibration-y').value=0;$('calibration-message').textContent='Accepted offsets loaded. Save to apply.';};
-$('calibration-form').onsubmit=async event=>{
-  event.preventDefault();
-  const ok=await post('/api/calibration',JSON.stringify({strip_offsets_px:[1,2,3,4].map(i=>Number($('calibration-'+i).value)),sheet_offset_y_px:Number($('calibration-y').value)}),true);
-  $('calibration-message').textContent=ok?'Saved for future sheets and dry runs. Active batch unchanged.':'Not saved. '+actionError;
-};
 $('session-form').onsubmit=async event=>{
   event.preventDefault();
   const ok=await post('/api/session-settings',JSON.stringify({countdown_seconds:Number($('countdown-seconds').value)}),true);

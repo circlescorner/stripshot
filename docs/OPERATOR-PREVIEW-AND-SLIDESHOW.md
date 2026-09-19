@@ -1,5 +1,12 @@
 # Dry runs, calibration, slideshow and session displays
 
+> Historical implementation and validation notes. Current physical adjustment uses
+> [one alignment for photos and PNG together](STRIP-ALIGNMENT.md). Separate photo
+> centering, caliper controls and preset/reset buttons below are superseded.
+> Photo spacing/order are under Photo layout; the current paper-free preview is
+> **Preview with saved photos**. Existing values and evidence are retained.
+
+
 Restart the existing launcher at an idle point, then reload the operator and both
 camera pages. All existing FPS, margin, scale, gap, photo-order and overlay controls
 remain visible. Nothing was hidden behind an advanced section.

@@ -1,5 +1,12 @@
 # Photo margins and continuous operation
 
+> Historical implementation and validation notes. Current physical adjustment uses
+> [one alignment for photos and PNG together](STRIP-ALIGNMENT.md). Separate photo
+> centering, caliper controls and preset/reset buttons below are superseded.
+> Photo spacing/order are under Photo layout; the current paper-free preview is
+> **Preview with saved photos**. Existing values and evidence are retained.
+
+
 Restart the application with the updated START-KIOSK.sh, then reload the operator
 page. New local configuration defaults: side/top margins about 3.05 mm, gap
 2.03 mm, bottom 15.24 mm, photo size 95%. The existing photo order and accepted

@@ -158,12 +158,66 @@ class OverlaySettingsTests(unittest.TestCase):
                 frozen = [{'scale_x_percent': 95, 'offset_x_px': -5}] * 4
                 e.action('overlay_settings', frozen)
                 e.freeze(software=True)
+                self.assertEqual(e.state['current']['alignment_mode'], 'whole_strip')
                 if legacy:
-                    del e.state['current']['overlay_settings']; e.save()
+                    del e.state['current']['overlay_settings']
+                    del e.state['current']['alignment_mode']; e.save()
                 e.action('overlay_settings', default_overlay_settings())
                 with patch('batch.render_sheet', wraps=render_sheet) as render:
                     restarted, _ = self.engine(phase='capture_held')
                     restarted.request('resume_capture').result(5)
                     eventually(lambda: restarted.state['last'] is not None and not restarted.state['current'])
                     self.assertEqual(render.call_args.kwargs['overlay_settings'], None if legacy else frozen)
+                    self.assertEqual(render.call_args.kwargs['alignment_mode'], 'legacy' if legacy else 'whole_strip')
                 restarted.stop()
+
+    def test_whole_strip_composes_then_transforms_once_and_ignores_legacy_photo_offsets(self):
+        e, _ = self.engine(start=False); source = self.completed(e)
+        photos = {c: [source / f'{c}{n:02d}.jpg' for n in range(1, 9)] for c in ('A', 'B')}
+        art = Image.new('RGBA', (600, 1800))
+        draw = ImageDraw.Draw(art)
+        draw.rectangle((0, 0, 599, 1799), outline='blue', width=12)
+        draw.rectangle((100, 150, 200, 250), fill=(0, 255, 0, 128))
+        overlay = self.root / 'border.png'; art.save(overlay)
+        layout = {**e.layout, 'margin': 20, 'top': 30, 'bottom': 100, 'gap': 12}
+        settings = [{'scale_x_percent': sx, 'offset_x_px': dx,
+                     'scale_y_percent': sy, 'offset_y_px': dy}
+                    for sx, dx, sy, dy in [(92.2, 24, 96.9, 1), (80, -40, 90, -25),
+                                           (50, 100, 75, 150), (100, 0, 100, 0)]]
+        nominal, actual, shifted = [self.root / name for name in ('nominal.png', 'whole.png', 'shifted.png')]
+        # Independently construct the expected result from the unshifted composition.
+        render_sheet(photos, [overlay]*4, layout, nominal)
+        render_sheet(photos, [overlay]*4, layout, actual, [0]*4, 0, settings, 'whole_strip')
+        render_sheet(photos, [overlay]*4, layout, shifted, [35, 24, 9, -1], 4, settings, 'whole_strip')
+        self.assertEqual(actual.read_bytes(), shifted.read_bytes(), 'old photo centering must not stack')
+        with Image.open(nominal) as design, Image.open(actual) as result:
+            for i, setting in enumerate(settings):
+                w = round(600*setting['scale_x_percent']/100)
+                h = round(1800*setting['scale_y_percent']/100)
+                x = (600-w)//2+setting['offset_x_px']; y = (1800-h)//2+setting['offset_y_px']
+                expected = Image.new('RGB', (600, 1800), 'white')
+                expected.paste(design.crop((600*i, 0, 600*(i+1), 1800)).resize((w, h), Image.Resampling.LANCZOS), (x, y))
+                self.assertEqual(result.crop((600*i, 0, 600*(i+1), 1800)).tobytes(), expected.tobytes())
+                # All four PNG edges and red photos survive inside the common fit.
+                for px, py in [(x+2, y+2), (x+w-3, y+2), (x+2, y+h-3), (x+w-3, y+h-3)]:
+                    self.assertGreater(result.getpixel((600*i+px, py))[2], 245)
+        # A strip with no PNG still receives the same physical correction.
+        render_sheet(photos, [None]*4, layout, actual, [35,24,9,-1], 4, settings, 'whole_strip')
+        with Image.open(actual) as result:
+            self.assertEqual(result.getpixel((0, 900)), (255,255,255))
+            self.assertGreater(result.getpixel((200, 100))[0], 240)
+
+    def test_dry_run_records_new_alignment_without_rewriting_legacy_settings(self):
+        e, _ = self.engine(start=False); e.phase = 'watching'; self.completed(e)
+        e.apply_calibration({'strip_offsets_px':[35,24,9,-1], 'sheet_offset_y_px':4})
+        legacy = e.calibration_path.read_bytes()
+        settings = [{'scale_x_percent':90, 'offset_x_px':10}]*4
+        e.save_overlay_settings(settings)
+        before = e.overlay_settings_path.read_bytes()
+        with patch('operator_tools.render_sheet', wraps=render_sheet) as render:
+            result = e.action('dry_run')
+        self.assertEqual(render.call_args.kwargs['alignment_mode'], 'whole_strip')
+        manifest = json.loads((e.root/'dry-runs'/result['id']/'manifest.json').read_text())
+        self.assertEqual(manifest['alignment_mode'], 'whole_strip')
+        self.assertEqual(e.calibration_path.read_bytes(), legacy)
+        self.assertEqual(e.overlay_settings_path.read_bytes(), before)

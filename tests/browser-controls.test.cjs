@@ -54,8 +54,8 @@ async function kiosk(){
 
 async function operator(){
  const nodes=elements(),calls=[];
- nodes['caliper-apply'].disabled=true;
- const buttons=[nodes['caliper-apply'],nodes.reset];
+ nodes['scan-apply'].disabled=true;
+ const buttons=[nodes['scan-apply'],nodes.reset];
  const context={document:{getElementById:id=>nodes[id],querySelector:()=>({content:'token'}),querySelectorAll:selector=>selector==='button'?buttons:[]},
   window:{StripshotSpace:{bind(){}},StripshotRequestJson:(url,options)=>{const d=deferred();calls.push({url,options,...d});return d.promise;}},setTimeout(){}};
  vm.createContext(context);vm.runInContext(fs.readFileSync('static/app.js','utf8'),context);
@@ -64,7 +64,7 @@ async function operator(){
  assert.equal(await vm.runInContext("post('/api/calibration','{}',true)",context),false);
  assert.equal(calls.filter(c=>c.options?.method==='POST').length,1,'busy forms cannot queue another action');
  calls.find(c=>c.options?.method==='POST').resolve({ok:true});await first;
- assert.equal(nodes['caliper-apply'].disabled,true,'unrelated action preserves disabled apply button');
+ assert.equal(nodes['scan-apply'].disabled,true,'unrelated action preserves disabled apply button');
  assert.equal(nodes.reset.disabled,false);
  calls.find(c=>c.url==='/api/status').reject(Error('Disconnected'));
  calls.find(c=>c.url==='/api/printer').resolve({status:'Idle',prints_remaining:150,media:'6x8 (A5)',percent:75,reported_at:1000,message:'Last reported by the printer driver'});await turn();
@@ -138,8 +138,8 @@ async function overlays(){
  assert.equal(calls[0].options.headers['X-Stripshot-Token'],'token');
  calls[0].resolve({ok:true});await save;
  assert.match(nodes['overlay-settings-message'].textContent,/saved/);
- nodes['overlay-reset-2'].onclick();assert.equal(nodes['overlay-scale-2'].value,100);
- assert.equal(nodes['overlay-offset-2'].value,0);assert.equal(nodes['overlay-offset-1'].value,-12);
+ nodes['overlay-scale-2'].value=100;nodes['overlay-offset-2'].value=0;nodes['overlay-scale-2'].oninput();
+ assert.equal(nodes['overlay-offset-1'].value,-12,'editing one PNG leaves the other fit unchanged');
  const failed=nodes['overlay-settings-form'].onsubmit({preventDefault(){}});await turn();
  calls[1].reject(Error('Disk full'));await failed;
  assert.match(nodes['overlay-settings-message'].textContent,/Save not confirmed.*Disk full/);
@@ -186,6 +186,29 @@ async function scanAlignment(){
  posts.shift().resolve(false);await upload;
  assert.equal(nodes['scan-calculate'].disabled,true,'failed replacement cannot use an old scan');
  assert.equal(nodes['scan-preview-link-1'].hidden,true);
+ vm.runInContext('updateScanAlignmentSettings('+JSON.stringify(proposal.settings)+')',context);
+ vm.runInContext('showScanState('+JSON.stringify({...state,proposal:{...proposal,applied:true}})+')',context);
+ assert.match(nodes['scan-saved-status'].textContent,/Saved alignment/);
+ const manual=proposal.settings.map(s=>({...s,offset_x_px:0}));
+ vm.runInContext('updateScanAlignmentSettings('+JSON.stringify(manual)+')',context);
+ assert.match(nodes['scan-saved-status'].textContent,/Manual edits replace/);
+ vm.runInContext('showScanState('+JSON.stringify({...state,target:{...state.target,status:'print_uncertain'}})+')',context);
+ assert.equal(nodes['scan-acknowledge'].hidden,false);
+ assert.equal(nodes['scan-prepare'].disabled,true,'uncertain reference cannot be replaced');
+ assert.equal(nodes['scan-print'].disabled,true,'uncertain reference cannot be printed again');
+ const acknowledge=nodes['scan-acknowledge'].onclick();const ack=posts.shift();
+ assert.equal(ack.action,'calibration_acknowledge');assert.equal(ack.body.id,'cal-test');
+ ack.resolve({status:'acknowledged_without_retry'});await acknowledge;
+ assert.equal(nodes['scan-acknowledge'].hidden,true);
+ assert.equal(nodes['scan-file-1'].disabled,false);
+ assert.equal(posts.length,0,'acknowledgement never submits another print');
+ const legacy=vm.runInContext('refreshScan()',context);
+ gets.shift().resolve({target:null,strips:{},proposal:null});await turn();
+ gets.shift().resolve({id:'old-reference',status:'print_uncertain'});await legacy;
+ assert.equal(nodes['scan-acknowledge'].hidden,false,'old reference attempts can still be acknowledged');
+ const oldAck=nodes['scan-acknowledge'].onclick();const pending=posts.shift();
+ assert.equal(pending.body.id,'old-reference');pending.resolve({status:'acknowledged_without_retry'});await oldAck;
+ assert.equal(nodes['scan-prepare'].disabled,false);
 }
 
 async function applicationControls(){
@@ -218,31 +241,4 @@ async function applicationControls(){
  assert.equal(posts.length,2,'blocked or slow shutdown never retries');
 }
 
-async function calibration(){
- const nodes=elements(),gets=[],posts=[];
- const context={$:id=>nodes[id],busy:false,actionError:'Failed',confirm:()=>true,setTimeout(){},
-  requestJson:()=>{const d=deferred();gets.push(d);return d.promise;},
-  post:(url,body)=>{const d=deferred();posts.push({url,body,...d});return d.promise;}};
- vm.createContext(context);vm.runInContext(fs.readFileSync('static/operator-calibration.js','utf8'),context);
- const target=id=>({id,url:'/calibration-targets/'+id,status:'submitted',strip_offsets_px:[26,16,6,-2],sheet_offset_y_px:2});
- gets.shift().resolve(target('first'));await turn();
- const measure=nodes['caliper-form'].onsubmit({preventDefault(){}});
- posts.shift().resolve({proposed:{strip_offsets_px:[25,15,5,-3],sheet_offset_y_px:1}});await measure;
- assert.equal(nodes['caliper-apply'].disabled,false);
- nodes['caliper-form'].input();assert.equal(nodes['caliper-apply'].disabled,true,'edited measurements invalidate proposal');
- await nodes['caliper-apply'].onclick();assert.equal(posts.length,0);
- const staleMeasure=nodes['caliper-form'].onsubmit({preventDefault(){}});
- nodes['caliper-form'].input();
- posts.shift().resolve({proposed:{strip_offsets_px:[0,0,0,0],sheet_offset_y_px:0}});await staleMeasure;
- assert.equal(nodes['caliper-apply'].disabled,true,'measurement results for edited inputs are discarded');
- const recalc=nodes['caliper-form'].onsubmit({preventDefault(){}});
- posts.shift().resolve({proposed:{strip_offsets_px:[25,15,5,-3],sheet_offset_y_px:1}});await recalc;
- const refresh=vm.runInContext('refreshCalibration()',context);gets.shift().resolve(target('second'));await refresh;
- assert.equal(nodes['caliper-apply'].disabled,true,'different target invalidates proposal');
- await nodes['caliper-apply'].onclick();assert.equal(posts.length,0);
- const oldRefresh=vm.runInContext('refreshCalibration()',context),old=gets.shift();
- const prepare=nodes['calibration-prepare'].onclick();posts.shift().resolve(target('third'));await prepare;
- old.resolve(target('second'));await oldRefresh;
- assert.match(nodes['calibration-target-status'].textContent,/third/,'stale polling cannot replace a newly prepared target');
-}
-(async()=>{await requests();await kiosk();await operator();await printing();await overlays();await scanAlignment();await applicationControls();await calibration();console.log('JSON deadlines, kiosk recovery, PNG adjustments, scan review, stop/restart controls, calibration invalidation: PASS');})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{await requests();await kiosk();await operator();await printing();await overlays();await scanAlignment();await applicationControls();console.log('JSON deadlines, kiosk recovery, PNG adjustments, scan review, stop/restart controls, reference print recovery: PASS');})().catch(error=>{console.error(error);process.exitCode=1;});

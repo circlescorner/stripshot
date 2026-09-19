@@ -129,7 +129,7 @@ def fit_axis(low, high, size, clearance):
     center = (low+high)/2
     available = 2*min(center-max(0, low+clearance), min(size, high-clearance)-center)
     if available < size*.75:
-        raise ValueError('Correction would shrink the artwork unusually far. Review the detected paper edges')
+        raise ValueError('Correction would shrink the strip unusually far. Review the detected paper edges')
     scale = math.floor(min(size, available)*1000/size)/10
     # Round to renderer pixels, then ensure the complete PNG meets both boundaries.
     while scale >= 75:
@@ -138,7 +138,7 @@ def fit_axis(low, high, size, clearance):
         if position >= max(0, low+clearance) and position+length <= min(size, high-clearance):
             return round(scale, 1), position-(size-length)//2, [position-low, high-position-length]
         scale = round(scale-.1, 1)
-    raise ValueError('No safe PNG placement fits the measured paper')
+    raise ValueError('No safe strip placement fits the measured paper')
 
 
 class ScanAlignment:
@@ -217,7 +217,7 @@ class ScanAlignment:
             raise ValueError('Printer configuration changed; print and scan a new target')
         current = self.engine.overlay_settings
         if current != target['overlay_settings'] and current != proposal['settings']:
-            raise ValueError('PNG settings changed since this target was prepared; prepare and scan a new target')
+            raise ValueError('Strip alignment changed since this target was prepared; prepare and scan a new target')
         self.engine.save_overlay_settings(proposal['settings'])
         proposal.update(applied=True, applied_at=time.time()); save_json(directory/'scan-state.json', state)
         return self.status()

@@ -138,6 +138,6 @@ class OperatorToolsTests(unittest.TestCase):
         page=client.get('/operator',headers=auth)
         token=re.search(rb'name="stripshot-token" content="([^"]+)"',page.data).group(1).decode()
         self.assertEqual(client.post('/api/slideshow-settings',headers={**auth,'X-Stripshot-Token':token},json={'seconds':5,'shuffle_all':True,'source':'all'}).status_code,200)
-        for expected in (b'layout-form',b'preview-form',b'calibration-form',b'order-4-4',b'slideshow-form'):
+        for expected in (b'layout-form',b'preview-form',b'overlay-settings-form',b'order-4-4',b'slideshow-form'):
             if expected==b'preview-form': continue # Disabled in this isolated fixture.
             self.assertIn(expected,page.data)

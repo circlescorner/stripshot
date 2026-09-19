@@ -110,7 +110,7 @@ class ScanAlignmentTests(unittest.TestCase):
         with self.assertRaises(ValueError): e.action('scan_apply', {**candidate, 'proposal_id': 'stale'})
         changed = default_overlay_settings(); changed[0]['scale_x_percent'] = 90
         e.action('overlay_settings', changed)
-        with self.assertRaisesRegex(ValueError, 'settings changed'): e.action('scan_apply', candidate)
+        with self.assertRaisesRegex(ValueError, 'alignment changed'): e.action('scan_apply', candidate)
         e.action('overlay_settings', default_overlay_settings())
         with self.assertRaises(ValueError): e.action('scan_upload', target['id'], 1, b'bad replacement')
         self.assertNotIn('1', e.scan_alignment.status()['strips'])

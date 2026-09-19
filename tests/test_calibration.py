@@ -60,6 +60,8 @@ class CalibrationRecoveryTests(unittest.TestCase):
         self.cfg['printer']['strip_offsets_px']=[20,15,6,-2]
         e,_=self.engine(start=False)
         e.freeze(software=True)
+        # Reproduce a batch frozen before whole-strip alignment was introduced.
+        del e.state['current']['alignment_mode']; e.save()
         self.cfg['printer']['strip_offsets_px']=[0]*4
         resumed,_=self.engine(phase='capture_held')
         resumed.request('resume_capture').result(5)

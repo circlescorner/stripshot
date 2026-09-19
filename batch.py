@@ -141,6 +141,7 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
                     'preview_fps': self.config.get('preview_fps', 0),
                     'layout': copy.deepcopy(self.layout),
                     'overlay_settings': copy.deepcopy(self.overlay_settings),
+                    'alignment_mode': 'whole_strip',
                     'uptime_seconds': int(time.monotonic() - self.started_at),
                     'cameras': dict(self.camera_status),
                     'previews': {c: w.preview_status() for c, w in self.workers.items()},
@@ -236,6 +237,7 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
                 'countdown_seconds':self.countdown_seconds,
                 'layout': copy.deepcopy(self.layout),
                 'overlay_settings': copy.deepcopy(self.overlay_settings),
+                'alignment_mode': 'whole_strip',
                 'printer': copy.deepcopy(self.config['printer']), 'overlays': overlays,
             }
             if software:
@@ -284,7 +286,8 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
         render_sheet(photos, overlays, batch['layout'], sheet,
                      strip_offsets_px=batch['printer'].get('strip_offsets_px', [0, 0, 0, 0]),
                      sheet_offset_y_px=batch['printer'].get('sheet_offset_y_px',0),
-                     overlay_settings=batch.get('overlay_settings'))
+                     overlay_settings=batch.get('overlay_settings'),
+                     alignment_mode=batch.get('alignment_mode', 'legacy'))
         with self.lock:
             if any(w.failure for w in self.workers.values()):
                 raise RuntimeError('Camera failed during preparation; restart after checking connections')

@@ -12,11 +12,15 @@ from qualification import validate_software_printing
 
 class OperatorTools:
     def initialize_operator_tools(self):
+        # Retain the historical storage name as the single alignment setting.
+        # New renders apply this fit to the combined photos and PNG.
         self.overlay_settings_path = self.root / 'operator-overlays.json'
         self.overlay_settings = (json.loads(self.overlay_settings_path.read_text())
                                  if self.overlay_settings_path.exists() else default_overlay_settings())
         validate_overlay_settings(self.overlay_settings)
         self.calibration_path = self.root / 'operator-calibration.json'
+        # Preserve legacy offsets/profile authorization for historical recovery;
+        # whole_strip renders do not apply these photo-only translations.
         if self.calibration_path.exists():
             self.apply_calibration(json.loads(self.calibration_path.read_text()), persist=False)
         self.session_path = self.root / 'operator-session.json'
@@ -115,11 +119,12 @@ class OperatorTools:
             if path.exists(): atomic_bytes(target,path.read_bytes()); overlays.append(target)
             else: overlays.append(None)
         render_sheet(photos,overlays,layout,output/'sheet.png',strip_offsets_px=offsets,
-                     sheet_offset_y_px=vertical,overlay_settings=overlay_settings)
+                     sheet_offset_y_px=vertical,overlay_settings=overlay_settings,alignment_mode='whole_strip')
         save_json(output/'manifest.json',{'id':ident,'source_batch':batch['id'],
                   'created_at':time.time(),'layout':layout,'strip_offsets_px':offsets,'sheet_offset_y_px':vertical,
                   'original_hashes':hashes,'overlays':[p.name if p else None for p in overlays],
                   'overlay_settings':overlay_settings,
+                  'alignment_mode':'whole_strip',
                   'status':'render_only_no_capture_no_print'})
         return {'id':ident,'url':'/dry-runs/'+ident}
 

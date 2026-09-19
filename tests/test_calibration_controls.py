@@ -62,8 +62,10 @@ class CalibrationControlTests(unittest.TestCase):
         token=re.search(rb'name="stripshot-token" content="([^"]+)"',page.data).group(1).decode()
         headers={**auth,'X-Stripshot-Token':token}
         self.assertEqual(client.post('/api/operator-tools/calibration_prepare',json={},headers=headers).status_code,200)
-        for ident in (b'photo-folder',b'calibration-print',b'caliper-form'):
+        for ident in (b'photo-folder',b'scan-print',b'overlay-settings-form',b'dry-run'):
             self.assertIn(ident,page.data)
+        for removed in (b'calibration-form',b'caliper-form',b'calibration-prepare',b'calibration-default',b'layout-larger'):
+            self.assertNotIn(removed,page.data)
 
     def test_disabled_print_gate(self):
         e,cards=self.engine(start=False);e.phase='watching'

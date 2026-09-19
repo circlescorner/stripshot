@@ -1,9 +1,14 @@
 'use strict';
 let scanState = {target:null,strips:{},proposal:null}, scanRevision = 0;
 let scanProposalVisible = false;
+let legacyPrintTarget = null;
+let scanCurrentSettings = null;
 function refreshScanButtons() {
   const target = scanState.target;
-  $('scan-prepare').disabled = busy;
+  const uncertain=['print_intent','print_uncertain'].includes((target || legacyPrintTarget)?.status);
+  $('scan-prepare').disabled = busy || uncertain;
+  $('scan-acknowledge').hidden = !uncertain;
+  $('scan-acknowledge').disabled = busy || !uncertain;
   $('scan-print').disabled = busy || target?.status !== 'ready';
   for (let i=1;i<=4;i++) $('scan-file-'+i).disabled = busy || !['submitted','acknowledged_without_retry'].includes(target?.status);
   $('scan-calculate').disabled = busy || Object.keys(scanState.strips).length !== 4;
@@ -15,11 +20,27 @@ function hideScanProposal() {
   $('scan-edges-confirmed').checked = false;
   refreshScanButtons();
 }
+function updateScanAlignmentSettings(settings) {
+  scanCurrentSettings=settings;
+  updateScanSavedStatus();
+}
+function updateScanSavedStatus() {
+  const proposal=scanState.proposal;
+  const sameFit=(a,b)=>['scale_x_percent','offset_x_px','scale_y_percent','offset_y_px'].every(
+    key=>(a[key] ?? (key==='scale_y_percent'?100:0))===(b[key] ?? (key==='scale_y_percent'?100:0)));
+  $('scan-saved-status').textContent = proposal?.applied
+    ? (scanCurrentSettings && !proposal.settings.every((s,i)=>sameFit(s,scanCurrentSettings[i]))
+      ? 'Strip alignment has changed since this scan correction. Manual edits replace the scan values; they do not add another adjustment.'
+      : 'Saved alignment applies to photos and PNG together. Keep your layout margins as they are. A fresh printed reference is still needed to verify the physical result.')
+    : `${Object.keys(scanState.strips).length} of 4 scans accepted. Accepting scans does not change placement; review and Apply saves alignment for photos and PNG together.`;
+}
 function showScanState(state, reveal=false) {
   const changed = state.target?.id !== scanState.target?.id || state.proposal?.id !== scanState.proposal?.id;
   scanState = state;
   if (changed) hideScanProposal();
   $('scan-target-status').textContent = state.target ? `${state.target.id} · ${state.target.status}` : 'Prepare a scan reference to begin.';
+  if (!state.target && legacyPrintTarget) $('scan-target-status').textContent='An earlier reference print needs review: '+legacyPrintTarget.id;
+  updateScanSavedStatus();
   $('scan-target-link').hidden = !state.target;
   if (state.target) $('scan-target-link').href = state.target.url+'/sheet.png';
   for (let i=1;i<=4;i++) {
@@ -50,16 +71,35 @@ async function refreshScan() {
   const revision=scanRevision;
   try {
     const state=await requestJson('/api/scan-alignment');
+    if (!state.target) {
+      const previous=await requestJson('/api/calibration-target');
+      if(revision!==scanRevision || busy)return;
+      legacyPrintTarget=['print_intent','print_uncertain'].includes(previous?.status) ? previous : null;
+    } else legacyPrintTarget=null;
     if (revision===scanRevision && !busy) showScanState(state);
   } catch(error) { if(revision===scanRevision && !busy) {hideScanProposal();$('scan-message').textContent=error.message;} }
   finally {setTimeout(refreshScan,5000);}
 }
 $('scan-prepare').onclick=async()=>{
-  if(busy)return;
+  if(busy || $('scan-prepare').disabled)return;
+  if(Object.keys(scanState.strips).length && !confirm('Prepare a fresh reference? Your saved strip alignment stays in place. This starts a new set of four scans; the previous scan files are kept.'))return;
   ++scanRevision; hideScanProposal();
   const result=await toolPost('scan_prepare');
-  if(result) {setCalibrationTarget(result);showScanState({target:{id:result.id,status:result.status,url:result.url},strips:{},proposal:null});}
+  if(result) {legacyPrintTarget=null;showScanState({target:{id:result.id,status:result.status,url:result.url},strips:{},proposal:null});}
   $('scan-message').textContent=result?'Reference prepared. Preview it, then print one sheet.':actionError;
+};
+$('scan-acknowledge').onclick=async()=>{
+  if(busy || $('scan-acknowledge').disabled)return;
+  const target=scanState.target || legacyPrintTarget;
+  if(!target || !['print_intent','print_uncertain'].includes(target.status))return;
+  if(!confirm('Have you checked CUPS and the physical printer? Acknowledge this reference print attempt without retrying it?'))return;
+  ++scanRevision;
+  const result=await toolPost('calibration_acknowledge',{id:target.id});
+  if(result){
+    if(scanState.target)showScanState({...scanState,target:{...scanState.target,status:result.status}});
+    else {legacyPrintTarget=null;showScanState(scanState);}
+  }
+  $('scan-message').textContent=result?'Reference print acknowledged. No new print was sent.':actionError;
 };
 $('scan-print').onclick=async()=>{
   if(busy || scanState.target?.status!=='ready')return;
@@ -110,6 +150,6 @@ $('scan-apply').onclick=async()=>{
       previewOverlay(i+1);
     });
   }
-  $('scan-message').textContent=result?'PNG alignment saved. Prepare, print and scan a fresh reference to verify the border margins.':actionError;
+  $('scan-message').textContent=result?'Strip alignment saved for photos and PNG together. Prepare, print and scan a fresh reference to verify the border margins.':actionError;
 };
 refreshScan();

@@ -180,21 +180,20 @@ EXIF-oriented, center-cropped photos. The full sheet is **2400 × 1800 at 300 DP
 a landscape 8 × 6 inch image for one 6 × 8 sheet. Nikon JPEG/MPO downloads retain
 original bytes; rendering uses the full-resolution primary image, not thumbnails.
 
-Each PNG card has independent horizontal scale (%) and offset (pixels) controls.
-Width can be 10–100%; the Vertical fit controls also adjust height. Scaling is centered, then positive
-offsets move right and negative offsets move left. The entire PNG must fit inside
-its strip: at 100% width only zero offset fits; at 90%, offsets from -30 to +30
-pixels fit. Out-of-bounds settings are rejected, never cropped or silently changed.
-Save PNG adjustments to retain them after restart and use them in future batches
-and dry runs. Each batch freezes its own settings. PNG placement is independent of
-photo calibration so all artwork edges remain visible. Uploads stay unchanged.
+**Strip alignment — photos + PNG** fits the finished composition to the paper.
+Photos are laid out and the full PNG is composited first; one saved scale/offset
+then moves both together. Use four separate 300/600-DPI flatbed scans of a numbered
+reference to measure the paper edges, review the outlines and apply. The manual
+controls under Advanced edit the same values. No PNG artwork is cropped.
 
-**Scan to align PNG borders** calculates PNG width, height and placement from four
-separate flatbed scans of a numbered reference print. Upload at 300/600 DPI on dark
-backing, review the detected cut edges and predicted margins, then apply. Existing
-photos and their calibration remain unchanged. Print and scan a fresh reference
-to verify the physical result; scanning does not guarantee perfect cutter repeatability.
-See [the scan instructions](docs/SCAN-ALIGNMENT.md).
+Keep **Photo layout** margins and gaps as they are unless changing the design
+inside a strip. Separate photo centering is no longer used for new sessions.
+**Preview with saved photos** renders the combined result without capture or print.
+Existing scans, uploads, originals, settings and finished sheets are preserved;
+old unfinished batches retain their frozen rendering rules. See
+[how the controls fit together](docs/STRIP-ALIGNMENT.md) and
+[the scan instructions](docs/SCAN-ALIGNMENT.md). Print and scan a fresh reference
+to verify physical accuracy; software checks do not establish cutter repeatability.
 
 The operator's top panel also offers **Stop Stripshot** and **Restart Stripshot**.
 Restart preserves the runtime printing mode and saved settings, then reloads the
@@ -216,7 +215,11 @@ batches, intent durability, uncertain-shutter holds, restart without extra shutt
 exact-file recovery, preview recovery, MPO decoding, borrowed buffer lifetime,
 scan cancellation, and duplicate-print protections. They do not qualify hardware.
 
-## Accepted DS40 centering
+## Historical DS40 centering
+
+New sessions use [whole-strip alignment](docs/STRIP-ALIGNMENT.md). The offsets
+below remain in historical settings and frozen legacy batches; they no longer
+shift new photos separately.
 
 The operator accepted the corrected synthetic target on the tested DNP_DS40.
 Use `config.ds40.software.example.json` for its per-strip offsets and tested

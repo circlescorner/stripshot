@@ -67,7 +67,8 @@ class CalibrationPrint:
             from scan_alignment import make_scan_sheet
             settings = copy.deepcopy(self.engine.overlay_settings)
             sheet, markers = make_scan_sheet(ident, settings)
-            extra = {'kind': 'scan_alignment', 'scan_markers': markers, 'overlay_settings': settings}
+            extra = {'kind': 'scan_alignment', 'scan_markers': markers, 'overlay_settings': settings,
+                     'alignment_mode': 'whole_strip'}
         data=io.BytesIO();sheet.save(data,'PNG',dpi=(300,300));atomic_bytes(directory/'sheet.png',data.getvalue())
         record={'id':ident,'status':'ready','created_at':time.time(),'printer':printer,
                 'strip_offsets_px':list(offsets),'sheet_offset_y_px':vertical,

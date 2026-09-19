@@ -1,5 +1,12 @@
 # Saved photos, calibration and live view
 
+> Historical implementation and validation notes. Current physical adjustment uses
+> [one alignment for photos and PNG together](STRIP-ALIGNMENT.md). Separate photo
+> centering, caliper controls and preset/reset buttons below are superseded.
+> Photo spacing/order are under Photo layout; the current paper-free preview is
+> **Preview with saved photos**. Existing values and evidence are retained.
+
+
 The operator page shows the current saved-photo path and a link to browse completed
 photos and finished sheets. Click any thumbnail to view its full-resolution file.
 The previously used location was `/tmp/stripshot-two-cameras-hgc2l_yp/batches/`, with a
