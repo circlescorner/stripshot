@@ -83,7 +83,7 @@ def create_app(engine):
     @app.get('/api/kiosk/status')
     def kiosk_status():
         state = engine.status()
-        return jsonify(session_id=guest_token, phase=state['phase'], counts=state['counts'],
+        return jsonify(application='stripshot', kiosk_mode=kiosk_mode, session_id=guest_token, phase=state['phase'], counts=state['counts'],
                        ready=(state['capture_mode'] == 'software' and state['phase'] == 'watching'
                               and not state['current'] and not state['capture_busy']),
                        printing_enabled=state['printing_enabled'],
@@ -252,6 +252,7 @@ def create_app(engine):
 def main():
     parser = argparse.ArgumentParser(description='Stripshot dual-camera print appliance')
     parser.add_argument('--config', default='config.json')
+    parser.add_argument('--open-pages', action='store_true', help='Open operator, guest and camera pages when the server is ready')
     parser.add_argument('--discover', action='store_true', help='Read attached camera serials, then exit')
     parser.add_argument('--dev-server', action='store_true', help='Use Werkzeug for local development only')
     parser.add_argument('--kiosk', action='store_true', help='Serve the guest kiosk and protect operator controls')
@@ -296,6 +297,12 @@ def main():
         engine = Engine(config, adapters)
         app = create_app(engine)
         engine.start()
+        if args.open_pages:
+            import threading
+            from desktop_launch import open_when_ready
+            threading.Thread(target=open_when_ready, args=(
+                'http://127.0.0.1:' + str(config['port']),
+                Path(args.config).resolve().parent / 'guest-browser'), daemon=True).start()
         if args.dev_server:
             app.run(host=config['host'], port=config['port'], threaded=True, use_reloader=False)
         else:

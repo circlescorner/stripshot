@@ -4,44 +4,53 @@ test_shift_clips_each_composited_strip_preserves_order_and_sources (test_calibra
 test_disabled_print_gate (test_calibration_controls.CalibrationControlTests.test_disabled_print_gate) ... ok
 test_durable_intent_uncertain_no_retry_and_no_shutters (test_calibration_controls.CalibrationControlTests.test_durable_intent_uncertain_no_retry_and_no_shutters) ... ok
 test_measurements_preview_without_apply_and_frozen_batch (test_calibration_controls.CalibrationControlTests.test_measurements_preview_without_apply_and_frozen_batch) ... ok
-test_operator_routes_require_auth_and_csrf (test_calibration_controls.CalibrationControlTests.test_operator_routes_require_auth_and_csrf) ... [2026-09-19 01:47:11,469] WARNING in app: Request failed POST /api/operator-tools/calibration_prepare: 403 Forbidden: Reload the dashboard before making changes
-[2026-09-19 01:47:11,470] WARNING in app: Request failed POST /api/operator-tools/calibration_print: 403 Forbidden: Reload the dashboard before making changes
-[2026-09-19 01:47:11,471] WARNING in app: Request failed POST /api/operator-tools/calibration_measure: 403 Forbidden: Reload the dashboard before making changes
+test_operator_routes_require_auth_and_csrf (test_calibration_controls.CalibrationControlTests.test_operator_routes_require_auth_and_csrf) ... [2026-09-19 02:06:08,603] WARNING in app: Request failed POST /api/operator-tools/calibration_prepare: 403 Forbidden: Reload the dashboard before making changes
+[2026-09-19 02:06:08,604] WARNING in app: Request failed POST /api/operator-tools/calibration_print: 403 Forbidden: Reload the dashboard before making changes
+[2026-09-19 02:06:08,605] WARNING in app: Request failed POST /api/operator-tools/calibration_measure: 403 Forbidden: Reload the dashboard before making changes
 ok
 test_mpo_uses_primary_photo_not_thumbnail (test_camera_jpeg.CameraJpegTests.test_mpo_uses_primary_photo_not_thumbnail) ... ok
 test_png_disguised_as_jpeg_still_rejected (test_camera_jpeg.CameraJpegTests.test_png_disguised_as_jpeg_still_rejected) ... ok
 test_truncated_mpo_primary_still_rejected (test_camera_jpeg.CameraJpegTests.test_truncated_mpo_primary_still_rejected) ... ok
+test_browser_windows_keep_guest_profile_separate (test_desktop_launch.DesktopLaunchTests.test_browser_windows_keep_guest_profile_separate) ... ok
+test_busy_port_stops_without_camera_start (test_desktop_launch.DesktopLaunchTests.test_busy_port_stops_without_camera_start) ... ok
+test_existing_kiosk_only_opens_operator_and_never_starts_owner (test_desktop_launch.DesktopLaunchTests.test_existing_kiosk_only_opens_operator_and_never_starts_owner) ... Stripshot is already running. Opening its operator page; no second owner started.
+ok
+test_missing_data_stops_before_password_or_exec (test_desktop_launch.DesktopLaunchTests.test_missing_data_stops_before_password_or_exec) ... ok
+test_page_opening_waits_for_server_without_retrying_start (test_desktop_launch.DesktopLaunchTests.test_page_opening_waits_for_server_without_retrying_start) ... ok
+test_second_click_while_password_pending_starts_nothing (test_desktop_launch.DesktopLaunchTests.test_second_click_while_password_pending_starts_nothing) ... Stripshot is already starting in another terminal window.
+ok
+test_start_reuses_config_and_does_not_enable_printing (test_desktop_launch.DesktopLaunchTests.test_start_reuses_config_and_does_not_enable_printing) ... ok
 test_blocked_call_times_out (test_diagnostics.DiagnosticWaitTests.test_blocked_call_times_out) ... ok
 test_failed_future_propagates (test_diagnostics.DiagnosticWaitTests.test_failed_future_propagates) ... ok
 test_progress_cannot_extend_overall_cap (test_diagnostics.DiagnosticWaitTests.test_progress_cannot_extend_overall_cap) ... ok
 test_progressing_49_second_inventory_allowed (test_diagnostics.DiagnosticWaitTests.test_progressing_49_second_inventory_allowed) ... ok
-test_guest_can_only_capture_and_see_reduced_status (test_kiosk.KioskTests.test_guest_can_only_capture_and_see_reduced_status) ... [2026-09-19 01:47:12,289] WARNING in app: Request failed POST /api/capture: 403 Forbidden: Reload the dashboard before making changes
-[2026-09-19 01:47:12,437] WARNING in app: Request failed POST /api/capture: A batch is already active or the cameras are not ready
+test_guest_can_only_capture_and_see_reduced_status (test_kiosk.KioskTests.test_guest_can_only_capture_and_see_reduced_status) ... [2026-09-19 02:06:09,335] WARNING in app: Request failed POST /api/capture: 403 Forbidden: Reload the dashboard before making changes
+[2026-09-19 02:06:09,520] WARNING in app: Request failed POST /api/capture: A batch is already active or the cameras are not ready
 ok
 test_kiosk_fails_closed_without_operator_password (test_kiosk.KioskTests.test_kiosk_fails_closed_without_operator_password) ... ok
-test_operator_requires_password_and_own_csrf (test_kiosk.KioskTests.test_operator_requires_password_and_own_csrf) ... [2026-09-19 01:47:15,998] WARNING in app: Request failed POST /api/reset: 403 Forbidden: Reload the dashboard before making changes
+test_operator_requires_password_and_own_csrf (test_kiosk.KioskTests.test_operator_requires_password_and_own_csrf) ... [2026-09-19 02:06:13,151] WARNING in app: Request failed POST /api/reset: 403 Forbidden: Reload the dashboard before making changes
 ok
 test_qualified_batch_one_spool_submission_and_restart_no_reprint (test_kiosk.KioskTests.test_qualified_batch_one_spool_submission_and_restart_no_reprint) ... ok
 test_uncertain_live_submission_holds_without_retry (test_kiosk.KioskTests.test_uncertain_live_submission_holds_without_retry) ... ok
 test_unqualified_profile_and_demo_live_rejected (test_kiosk.KioskTests.test_unqualified_profile_and_demo_live_rejected) ... ok
 test_invalid_or_unsaved_layout_never_replaces_current (test_layout_controls.LayoutControlsTests.test_invalid_or_unsaved_layout_never_replaces_current) ... ok
-test_layout_api_persists_and_does_not_change_frozen_batch (test_layout_controls.LayoutControlsTests.test_layout_api_persists_and_does_not_change_frozen_batch) ... [2026-09-19 01:47:23,616] WARNING in app: Request failed POST /api/layout: 403 Forbidden: Reload the dashboard before making changes
+test_layout_api_persists_and_does_not_change_frozen_batch (test_layout_controls.LayoutControlsTests.test_layout_api_persists_and_does_not_change_frozen_batch) ... [2026-09-19 02:06:20,637] WARNING in app: Request failed POST /api/layout: 403 Forbidden: Reload the dashboard before making changes
 ok
 test_photo_scaling_centers_in_slot_without_scaling_overlay (test_layout_controls.LayoutControlsTests.test_photo_scaling_centers_in_slot_without_scaling_overlay) ... ok
 test_calibration_persists_freezes_and_retains_printer_profile_gate (test_operator_tools.OperatorToolsTests.test_calibration_persists_freezes_and_retains_printer_profile_gate) ... ok
 test_countdown_is_real_frozen_and_issues_no_shutter_early (test_operator_tools.OperatorToolsTests.test_countdown_is_real_frozen_and_issues_no_shutter_early) ... ok
 test_dry_run_refuses_active_batch_and_changed_original (test_operator_tools.OperatorToolsTests.test_dry_run_refuses_active_batch_and_changed_original) ... ok
 test_gallery_only_serves_completed_batches_and_thumbnail (test_operator_tools.OperatorToolsTests.test_gallery_only_serves_completed_batches_and_thumbnail) ... ok
-test_guest_display_access_does_not_allow_operator_changes (test_operator_tools.OperatorToolsTests.test_guest_display_access_does_not_allow_operator_changes) ... [2026-09-19 01:47:24,242] WARNING in app: Request failed POST /api/slideshow-settings: 403 Forbidden: Reload the dashboard before making changes
+test_guest_display_access_does_not_allow_operator_changes (test_operator_tools.OperatorToolsTests.test_guest_display_access_does_not_allow_operator_changes) ... [2026-09-19 02:06:21,224] WARNING in app: Request failed POST /api/slideshow-settings: 403 Forbidden: Reload the dashboard before making changes
 ok
-test_render_dry_run_uses_saved_art_and_settings_without_print_or_capture (test_operator_tools.OperatorToolsTests.test_render_dry_run_uses_saved_art_and_settings_without_print_or_capture) ... [2026-09-19 01:47:24,786] WARNING in app: Request failed GET /dry-runs/dry-nope/sheet.png: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+test_render_dry_run_uses_saved_art_and_settings_without_print_or_capture (test_operator_tools.OperatorToolsTests.test_render_dry_run_uses_saved_art_and_settings_without_print_or_capture) ... [2026-09-19 02:06:21,814] WARNING in app: Request failed GET /dry-runs/dry-nope/sheet.png: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
 ok
 test_saved_custom_offsets_can_print_once_with_original_profile (test_operator_tools.OperatorToolsTests.test_saved_custom_offsets_can_print_once_with_original_profile) ... ok
 test_slideshow_settings_saved_and_validated (test_operator_tools.OperatorToolsTests.test_slideshow_settings_saved_and_validated) ... ok
 test_appliance_monitor_policy_allows_cached_blob_frames (test_preview.PreviewTests.test_appliance_monitor_policy_allows_cached_blob_frames) ... ok
 test_card_is_restored_even_if_first_preview_fails (test_preview.PreviewTests.test_card_is_restored_even_if_first_preview_fails) ... ok
 test_cleanup_restores_card_and_exits_even_when_end_liveview_fails (test_preview.PreviewTests.test_cleanup_restores_card_and_exits_even_when_end_liveview_fails) ... ok
-test_http_clients_share_cache_and_batch_processing_still_works (test_preview.PreviewTests.test_http_clients_share_cache_and_batch_processing_still_works) ... [2026-09-19 01:47:28,630] WARNING in app: Request failed GET /view/C: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+test_http_clients_share_cache_and_batch_processing_still_works (test_preview.PreviewTests.test_http_clients_share_cache_and_batch_processing_still_works) ... [2026-09-19 02:06:25,575] WARNING in app: Request failed GET /view/C: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
 ok
 test_invalid_rates_are_rejected (test_preview.PreviewTests.test_invalid_rates_are_rejected) ... ok
 test_media_change_during_preview_is_a_failure (test_preview.PreviewTests.test_media_change_during_preview_is_a_failure) ... ok
@@ -52,7 +61,7 @@ test_startup_cannot_report_ready_if_card_restore_fails (test_preview.PreviewTest
 test_stopped_liveview_does_not_silently_restart_into_sdram (test_preview.PreviewTests.test_stopped_liveview_does_not_silently_restart_into_sdram) ... ok
 test_configuration_bounds_preserve_disabled_default (test_preview_settings.PreviewSettingsTests.test_configuration_bounds_preserve_disabled_default) ... ok
 test_invalid_busy_and_failed_save_leave_rate_unchanged (test_preview_settings.PreviewSettingsTests.test_invalid_busy_and_failed_save_leave_rate_unchanged) ... ok
-test_operator_authentication_and_csrf_required (test_preview_settings.PreviewSettingsTests.test_operator_authentication_and_csrf_required) ... [2026-09-19 01:47:30,463] WARNING in app: Request failed POST /api/preview-settings: 403 Forbidden: Reload the dashboard before making changes
+test_operator_authentication_and_csrf_required (test_preview_settings.PreviewSettingsTests.test_operator_authentication_and_csrf_required) ... [2026-09-19 02:06:27,045] WARNING in app: Request failed POST /api/preview-settings: 403 Forbidden: Reload the dashboard before making changes
 ok
 test_saved_rate_applies_to_both_workers_restart_and_frame_header (test_preview_settings.PreviewSettingsTests.test_saved_rate_applies_to_both_workers_restart_and_frame_header) ... ok
 test_driver_count_is_read_only_and_available_with_printing_disabled (test_printer_status.PrinterStatusTests.test_driver_count_is_read_only_and_available_with_printing_disabled) ... ok
@@ -71,16 +80,17 @@ test_order_frozen_persistent_and_legacy_default (test_recovery_ordering.Recovery
 test_pixels_follow_custom_order_and_legacy_order (test_recovery_ordering.RecoveryOrderingTests.test_pixels_follow_custom_order_and_legacy_order) ... ok
 test_reconnect_refuses_alive_cleanup_error_and_pending_capture (test_recovery_ordering.RecoveryOrderingTests.test_reconnect_refuses_alive_cleanup_error_and_pending_capture) ... ok
 test_gallery_requires_operator_auth_and_removed_storage_api_is_gone (test_saved_photos.SavedPhotosTests.test_gallery_requires_operator_auth_and_removed_storage_api_is_gone) ... ok
-test_gallery_shows_location_and_originals_without_mutating_them (test_saved_photos.SavedPhotosTests.test_gallery_shows_location_and_originals_without_mutating_them) ... [2026-09-19 01:47:33,393] WARNING in app: Request failed GET /photos/batch-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/manifest.json: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
-[2026-09-19 01:47:33,393] WARNING in app: Request failed GET /photos/batch-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/A01.jpg: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+test_gallery_shows_location_and_originals_without_mutating_them (test_saved_photos.SavedPhotosTests.test_gallery_shows_location_and_originals_without_mutating_them) ... [2026-09-19 02:06:30,118] WARNING in app: Request failed GET /photos/batch-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/manifest.json: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+[2026-09-19 02:06:30,119] WARNING in app: Request failed GET /photos/batch-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/A01.jpg: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
 ok
+test_operator_links_to_all_main_pages_even_without_preview_frames (test_saved_photos.SavedPhotosTests.test_operator_links_to_all_main_pages_even_without_preview_frames) ... ok
 test_metadata_failure_rejects_baseline (test_scan.ScanTests.test_metadata_failure_rejects_baseline) ... ok
 test_stall_visible_and_stop_prevents_preview (test_scan.ScanTests.test_stall_visible_and_stop_prevents_preview) ... ok
 test_trace_preserves_identity (test_scan.ScanTests.test_trace_preserves_identity) ... ok
 test_active_batch_cannot_start_second_sequence (test_software_app.SoftwareAppTests.test_active_batch_cannot_start_second_sequence) ... ok
 test_changed_saved_identity_prevents_resumption (test_software_app.SoftwareAppTests.test_changed_saved_identity_prevents_resumption) ... ok
 test_corrupt_local_download_recovers_exact_file_without_new_shutter (test_software_app.SoftwareAppTests.test_corrupt_local_download_recovers_exact_file_without_new_shutter) ... ok
-test_dashboard_starts_software_batch_with_csrf_protection (test_software_app.SoftwareAppTests.test_dashboard_starts_software_batch_with_csrf_protection) ... [2026-09-19 01:47:37,964] WARNING in app: Request failed POST /api/capture: 403 Forbidden: Reload the dashboard before making changes
+test_dashboard_starts_software_batch_with_csrf_protection (test_software_app.SoftwareAppTests.test_dashboard_starts_software_batch_with_csrf_protection) ... [2026-09-19 02:06:34,507] WARNING in app: Request failed POST /api/capture: 403 Forbidden: Reload the dashboard before making changes
 ok
 test_existing_external_state_not_reinterpreted (test_software_app.SoftwareAppTests.test_existing_external_state_not_reinterpreted) ... ok
 test_failed_intent_save_prevents_shutter (test_software_app.SoftwareAppTests.test_failed_intent_save_prevents_shutter) ... ok
@@ -109,8 +119,8 @@ test_completed_batch_is_not_reprinted_on_restart (test_stripshot.ApplianceTests.
 test_corrupt_state_is_not_silently_replaced (test_stripshot.ApplianceTests.test_corrupt_state_is_not_silently_replaced) ... ok
 test_crash_after_intent_before_submission_holds_batch (test_stripshot.ApplianceTests.test_crash_after_intent_before_submission_holds_batch) ... ok
 test_cups_single_submission_and_explicit_queue (test_stripshot.ApplianceTests.test_cups_single_submission_and_explicit_queue) ... ok
-test_dashboard_csrf_upload_and_traversal (test_stripshot.ApplianceTests.test_dashboard_csrf_upload_and_traversal) ... [2026-09-19 01:48:03,091] WARNING in app: Request failed POST /api/reset: 403 Forbidden: Reload the dashboard before making changes
-[2026-09-19 01:48:03,255] WARNING in app: Request failed GET /batches/not-a-batch/preview.jpg: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+test_dashboard_csrf_upload_and_traversal (test_stripshot.ApplianceTests.test_dashboard_csrf_upload_and_traversal) ... [2026-09-19 02:06:58,427] WARNING in app: Request failed POST /api/reset: 403 Forbidden: Reload the dashboard before making changes
+[2026-09-19 02:06:58,584] WARNING in app: Request failed GET /batches/not-a-batch/preview.jpg: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
 ok
 test_demo_cannot_enable_printer (test_stripshot.ApplianceTests.test_demo_cannot_enable_printer) ... ok
 test_exact_strip_order_and_independent_overlays (test_stripshot.ApplianceTests.test_exact_strip_order_and_independent_overlays) ... ok
@@ -128,7 +138,7 @@ Traceback (most recent call last):
          ~~~~~~~~~~^^^^^^
   File "/usr/lib/python3/dist-packages/PIL/Image.py", line 3579, in open
     raise UnidentifiedImageError(msg)
-PIL.UnidentifiedImageError: cannot identify image file '/tmp/tmp3488_zkd/data/batches/batch-117b4f3205ba4cf78b26d64be4370a8f/A01.jpg'
+PIL.UnidentifiedImageError: cannot identify image file '/tmp/tmpu5mzrcos/data/batches/batch-bd7323062fd24d9d9f938420e8eabe95/A01.jpg'
 ok
 test_live_camera_download_checks_identity_and_size (test_stripshot.ApplianceTests.test_live_camera_download_checks_identity_and_size) ... ok
 test_live_camera_ignores_non_file_and_raw_events (test_stripshot.ApplianceTests.test_live_camera_ignores_non_file_and_raw_events) ... ok
@@ -152,14 +162,11 @@ test_process_lock_rejects_second_owner (test_stripshot.ApplianceTests.test_proce
 test_reset_keeps_files_and_ignores_duplicate_events (test_stripshot.ApplianceTests.test_reset_keeps_files_and_ignores_duplicate_events) ... ok
 
 ----------------------------------------------------------------------
-Ran 114 tests in 66.665s
+Ran 122 tests in 64.868s
 
 OK
 
-All five Node regression suites passed:
-spacebar, display, resilient-loop, monitor-recovery, browser-controls.
-
-Read-only CUPS: DNP_DS40 supplies reported 150 prints remaining, 75%, 6x8 (A5).
-Browser: isolated read-only operator page displayed count, media, percentage and
-last driver-report timestamp. No camera workers were started. Browser tab closed.
-No physical capture, print, live kiosk restart or merge performed.
+Five Node suites passed in the preceding DS40/browser update; their code is unchanged.
+Desktop launcher tests mock all process/browser starts; no camera or printer used.
+Operator navigation verified in a read-only browser preview, then preview stopped.
+Desktop entry validates and has executable/trusted metadata.

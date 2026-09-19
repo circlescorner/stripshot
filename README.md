@@ -258,3 +258,6 @@ The operator page shows the saved-photo folder and a read-only photo/sheet brows
 The operator Output panel displays the DS40’s last reported remaining print count,
 media, percentage and report time. Supply reads require `cups-ipp-utils` and never
 submit a print job. See [printer status details](docs/CALIBRATION-AND-LIVE-VIEW.md#ds40-remaining-prints).
+
+[Desktop startup and page links](docs/DESKTOP-START.md) describes the desktop launcher,
+operator navigation and the fresh local photo collection.

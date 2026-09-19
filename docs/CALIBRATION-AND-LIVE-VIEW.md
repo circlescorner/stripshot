@@ -7,7 +7,9 @@ The previously used location was `/tmp/stripshot-two-cameras-hgc2l_yp/batches/`,
 `sheet.png`, frozen artwork and the manifest. Unfinished sessions stay in their session folder. After the reported power-off on
 September 19, the old `/tmp/stripshot-two-cameras-hgc2l_yp` directory was absent.
 Preserved hardware manifests and reports remain in the existing deliverables;
-no restoration, fresh live data directory, or camera-owner restart was attempted.
+the user subsequently requested a fresh session. New photos will be saved under
+`/home/m/Pictures/Stripshot/batches/`; old photos were not imported or deleted.
+No camera-owner restart was performed during development.
 
 Storage migration, destination controls, additional copies and retention machinery
 have been removed. Existing photo data and recovery evidence are unchanged.

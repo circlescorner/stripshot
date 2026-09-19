@@ -10,3 +10,8 @@
 #caliper-form fieldset{min-width:0;border:1px solid #ccd0c5;border-radius:8px;padding:12px}
 #caliper-form>label{display:inline-flex;gap:8px;margin:14px 16px 14px 0}
 #caliper-form>label input,#calibration-y{width:90px;padding:8px}
+
+.page-links{display:flex;flex-wrap:wrap;gap:10px;padding:18px 0;border-bottom:1px solid var(--line)}
+.page-links a{color:var(--ink);font-size:13px;text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:10px 14px}
+.page-links a:hover,.page-links a[aria-current="page"]{background:#e4eade}
+.page-links a:focus-visible{outline:2px solid var(--green);outline-offset:3px}

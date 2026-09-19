@@ -1,4 +1,9 @@
-# DS40 roll count and browser recovery
+# Desktop startup, page links, DS40 roll count and browser recovery
+
+The operator page now has top navigation to every main page. The desktop launcher
+reuses an existing kiosk or opens operator, guest and both camera pages after startup.
+Duplicate clicks do not create a second owner. The installed desktop entry is
+executable/trusted; printing is disabled by default. See DESKTOP-START.md.
 
 The operator page shows the saved-photo folder and a read-only browser for completed
 originals and finished sheets. The added migration, backup and retention system was
@@ -24,7 +29,7 @@ operator submissions are rejected. Caliper proposals are invalidated when inputs
 targets change; late responses cannot restore obsolete proposals. Disabled buttons
 remain disabled after unrelated actions. README no longer claims edge filling exists.
 
-Verification: 114 Python tests passed in 66.665 seconds. Five Node regression suites
+Verification: 122 Python tests passed in 64.868 seconds. Five Node regression suites
 passed, including stalled JSON bodies, failed/late kiosk status, uncertain capture,
 concurrent operator submissions and obsolete caliper proposals. Printer tests cover zero/unknown counts, missing
 tools, timeouts, recovery and nonblocking shared polling. Flask test-client
@@ -32,7 +37,10 @@ checks rendered operator, kiosk and slideshow pages and verified script loading 
 and availability. Tests used isolated fake cameras and temporary data. No actual saved calibration, layout, artwork, originals or recovery records were
 modified. After the reported power-off, `/tmp/stripshot-two-cameras-hgc2l_yp`
 was absent. Preserved hardware manifests/reports remain in the previous outputs;
-no replacement live data directory or restoration was performed.
+the user subsequently requested a fresh session. The local configuration now points
+to an empty `/home/m/Pictures/Stripshot` collection, with the recorded calibration
+retained. Earlier photos are not imported or deleted. The missing uploaded artwork
+and later layout edits need operator review; no demo artwork was substituted.
 
 No physical capture or print, live-owner restart, data relocation or merge occurred.
 This is software verification, not new physical printer qualification. Native abrupt

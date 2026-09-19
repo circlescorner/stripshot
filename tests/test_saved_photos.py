@@ -40,3 +40,18 @@ class SavedPhotosTests(unittest.TestCase):
         self.assertNotIn(b'retention-form',page)
         for action in ('storage_settings','storage_location','storage_export','storage_retention'):
             with self.assertRaisesRegex(ValueError,'Unknown action'):e.action(action,{})
+
+    def test_operator_links_to_all_main_pages_even_without_preview_frames(self):
+        from html.parser import HTMLParser
+        class Links(HTMLParser):
+            def __init__(self):super().__init__();self.links=set();self.inside=False
+            def handle_starttag(self,tag,attrs):
+                attrs=dict(attrs)
+                if tag=='nav' and attrs.get('aria-label')=='Booth pages':self.inside=True
+                if self.inside and tag=='a':self.links.add(attrs['href'])
+            def handle_endtag(self,tag):
+                if tag=='nav':self.inside=False
+        engine,_=self.engine(start=False);client=create_app(engine).test_client()
+        links=Links();links.feed(client.get('/operator').get_data(as_text=True))
+        self.assertEqual(links.links,{'/operator','/kiosk','/view/A','/view/B','/slideshow','/photos'})
+        for path in links.links:self.assertEqual(client.get(path).status_code,200,path)

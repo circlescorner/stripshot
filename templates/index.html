@@ -14,6 +14,14 @@
 <body>
 <main>
   <header><a class="brand" href="/">stripshot<span>®</span></a><span class="edition">OPERATOR / 01</span><span id="mode" class="badge">Connecting</span></header>
+  <nav class="page-links" aria-label="Booth pages">
+    <a href="/operator" aria-current="page">Operator</a>
+    {% if software %}<a href="/kiosk" target="_blank" rel="noopener">Guest kiosk</a>{% endif %}
+    <a href="/view/A" target="_blank" rel="noopener">Camera A</a>
+    <a href="/view/B" target="_blank" rel="noopener">Camera B</a>
+    <a href="/slideshow" target="_blank" rel="noopener">Slideshow</a>
+    <a href="/photos" target="_blank" rel="noopener">Saved photos & sheets</a>
+  </nav>
   <section class="intro"><div><p class="eyebrow">TWO CAMERAS. ONE GOOD MOMENT.</p><h1>From shutter<br>to keepsake.</h1><p class="subtitle">Eight photos each. Four strips. All together.</p></div><div class="status-block"><span class="pulse" id="pulse"></span><p id="phase">Starting up</p><small id="phase-detail">Connecting to the cameras…</small></div></section>
   <div id="notice" role="status" aria-live="polite" hidden></div>
   <section class="collection panel" aria-label="Current batch">
