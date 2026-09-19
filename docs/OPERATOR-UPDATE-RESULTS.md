@@ -46,3 +46,14 @@ No physical capture or print, live-owner restart, data relocation or merge occur
 This is software verification, not new physical printer qualification. Native abrupt
 failure, endurance, custom calibration and OS kiosk lockdown remain unqualified.
 A controlled application restart and page reload are needed to load the updated package.
+
+## Live-view diagnosis and correction
+
+On the user-started kiosk at port 8090, both cameras supplied about 15 FPS and cached
+JPEGs returned HTTP 200 in about 1 ms, but browser polling stopped with an illegal
+invocation of native Window timers. Default timer wrappers now preserve browser
+calling semantics. A receiver-sensitive regression exercises the browser export,
+including timeout recovery, wake and stop. All five Node suites passed. Both camera
+pages displayed changing decoded 640×424 frames after a reload, with no new console
+errors. This static correction needs only a camera-page reload, not a live restart.
+No shutter, print, reconnect, calibration or artwork action was performed.

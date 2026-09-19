@@ -49,3 +49,10 @@ profile separation. The navigation was inspected in an isolated read-only browse
 preview; that preview was stopped. The desktop entry passes desktop-file-validate
 and is executable/trusted. Real-camera startup was not exercised; no capture or
 print was made.
+
+## Live-view timer fix
+
+If a camera page was opened before the September 19 timer fix, reload that window
+with Ctrl+R. The corrected static script is served by the existing kiosk on 8090;
+keep its terminal running. Both live camera pages were verified displaying refreshed
+frames after reload, without restarting or reconnecting either camera.

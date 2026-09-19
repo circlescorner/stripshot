@@ -61,6 +61,22 @@ frozen printer/calibration settings. JPEG/MPO primary-frame handling is unchange
 
 ## Display recovery
 
+September 19 live diagnosis on port 8090 reproduced `TypeError: Illegal invocation`
+in `ResilientLoop.tick` and `wake`: native Window timer functions were stored on the
+loop and called with the loop as their receiver. This stopped browser polling even
+while both camera workers reported about 15 FPS. Both cached JPEG endpoints returned
+HTTP 200 in about 1 ms. Wrapping the default timer calls fixes their receiver without
+changing camera ownership or frame handling. The regression test now models browser
+receiver restrictions that Node timers do not enforce.
+
+After installing the static JavaScript and reloading the two test browser pages,
+both displayed continuously refreshed decoded 640×424 frames with no new console
+errors. The existing Firefox camera windows need a reload (Ctrl+R). No server restart
+is needed for this static-only fix. The live process on 8090 stayed running; no camera
+reconnect, shutter, print, calibration or artwork change was performed. GTK messages
+and the isolated queue warning were not the cause of this reproduced failure.
+
+
 The old fetch timeout did not bound image.decode(), leaving a plausible route to a
 stranded frame loop. This was a code finding, not a reproduced hardware diagnosis.
 The frame and session loops now bound the entire operation (including response body
@@ -96,8 +112,8 @@ The white-edge issue remains unresolved; no replacement border treatment is enab
 
 ## Deployment and verification
 
-A controlled application restart and one page reload are required to load changed
-Python, templates and JavaScript. No live owner was restarted during development.
+Earlier Python/template updates require a controlled application restart. The
+September 19 timer correction only requires reloading the camera pages. No live owner was restarted during development.
 No physical capture or print was used to verify this update. Accepted hardware
 results and all earlier evidence are preserved. No new physical printer qualification is claimed. Native abrupt
 failure, endurance, custom calibration and full OS lockdown remain unqualified.

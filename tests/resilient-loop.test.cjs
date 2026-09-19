@@ -1,5 +1,20 @@
+'use strict';
 const assert=require('node:assert/strict');
-const Loop=require('../static/resilient-loop.js');
+const fs=require('node:fs');
+const vm=require('node:vm');
+// Node timers tolerate receivers that native browser timers reject.
+const sandbox={performance,AbortController};
+sandbox.window=sandbox;
+sandbox.setTimeout=function(fn,ms){
+ assert.ok(this===undefined || this===sandbox,'setTimeout must not receive the loop');
+ return setTimeout(fn,ms);
+};
+sandbox.clearTimeout=function(id){
+ assert.ok(this===undefined || this===sandbox,'clearTimeout must not receive the loop');
+ return clearTimeout(id);
+};
+vm.runInNewContext(fs.readFileSync('static/resilient-loop.js','utf8'),sandbox);
+const Loop=sandbox.StripshotResilientLoop;
 (async()=>{
  let calls=0,firstCurrent,release,firstSignal;
  const first=new Promise(resolve=>{release=resolve;});

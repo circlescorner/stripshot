@@ -3,7 +3,8 @@
   // A stalled fetch/decode must not strand the next iteration. Late work gets
   // an aborted signal and must check current() before publishing any result.
   class ResilientLoop {
-    constructor(run,{deadline=2000,delay=500,clock=()=>performance.now(),set=setTimeout,clear=clearTimeout}={}) {
+    constructor(run,{deadline=2000,delay=500,clock=()=>performance.now(),set=(fn,ms)=>setTimeout(fn,ms),clear=id=>clearTimeout(id)}={}) {
+      // Native browser timers must not receive the loop as their receiver.
       Object.assign(this,{run,deadline,delay,clock,set,clear});
       this.timer=null;this.active=null;this.sequence=0;this.stopped=true;
     }
