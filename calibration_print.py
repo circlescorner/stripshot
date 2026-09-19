@@ -36,7 +36,7 @@ class CalibrationPrint:
     def idle(self):
         if self.engine.state['current'] or self.engine.phase!='watching':raise ValueError('Wait for the current session to finish')
 
-    def prepare(self):
+    def prepare(self, scan=False):
         self.idle();previous=self.latest()
         if previous and previous['status'] in ('print_intent','print_uncertain'):
             raise ValueError('Check CUPS and the physical printer, then acknowledge the uncertain calibration job first')
@@ -62,10 +62,16 @@ class CalibrationPrint:
             d.rectangle((180,1200,180+square,1200+square),outline='black',width=1)
             d.text((190,1480),'20 mm square',font=small,fill='black')
             shifted=Image.new('RGB',(600,1800),'white');shifted.paste(strip,(offsets[n],vertical));sheet.paste(shifted,(600*n,0))
+        extra = {}
+        if scan:
+            from scan_alignment import make_scan_sheet
+            settings = copy.deepcopy(self.engine.overlay_settings)
+            sheet, markers = make_scan_sheet(ident, settings)
+            extra = {'kind': 'scan_alignment', 'scan_markers': markers, 'overlay_settings': settings}
         data=io.BytesIO();sheet.save(data,'PNG',dpi=(300,300));atomic_bytes(directory/'sheet.png',data.getvalue())
         record={'id':ident,'status':'ready','created_at':time.time(),'printer':printer,
                 'strip_offsets_px':list(offsets),'sheet_offset_y_px':vertical,
-                'sheet_sha256':hashlib.sha256(data.getvalue()).hexdigest()}
+                'sheet_sha256':hashlib.sha256(data.getvalue()).hexdigest(), **extra}
         save_json(directory/'manifest.json',record);save_json(self.root/'latest.json',{'id':ident})
         return self.latest()
 

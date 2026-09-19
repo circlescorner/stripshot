@@ -20,6 +20,7 @@ from gallery import Gallery
 from display_settings import DisplaySettings
 from operator_tools import OperatorTools
 from calibration_print import CalibrationPrint
+from scan_alignment import ScanAlignment
 
 LOG = logging.getLogger(__name__)
 
@@ -27,6 +28,8 @@ LOG = logging.getLogger(__name__)
 class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
     def __init__(self, config, adapters):
         self.config = config
+        self.instance_id = uuid.uuid4().hex
+        self.application_control = None
         self.software = config['camera_mode'] == 'software'
         if self.software:
             validate_software_printing(config['printer'], config['demo'])
@@ -50,6 +53,7 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
         self.initialize_operator_tools()
         self.gallery = Gallery(self.root)
         self.calibration_print = CalibrationPrint(self)
+        self.scan_alignment = ScanAlignment(self)
         self.started_at = time.monotonic()
         self.lock = threading.RLock()
         self.events, self.commands = queue.Queue(), queue.Queue()
@@ -114,6 +118,9 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
     def status(self):
         with self.lock:
             return {'phase': self.phase, 'error': self.error,
+                    'instance_id': self.instance_id,
+                    'application_control_available': bool(self.application_control and self.application_control.available()),
+                    'application_control_action': self.application_control.action if self.application_control else None,
                     'slideshow': copy.deepcopy(self.display),
                     'calibration': {'strip_offsets_px':list(self.config['printer'].get('strip_offsets_px',[0]*4)), 'sheet_offset_y_px':self.config['printer'].get('sheet_offset_y_px',0)},
                     'data_dir': str(self.root),
@@ -141,7 +148,7 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
 
     def request(self, action, *args):
         future = Future()
-        if not self.thread.is_alive():
+        if self.stop_event.is_set() or not self.thread.is_alive():
             future.set_exception(RuntimeError('Coordinator is stopped; inspect logs and restart'))
         else:
             self.commands.put((action, args, future))
@@ -285,6 +292,13 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
             self.phase, self.error = 'watching', None
 
     def action(self, action, *args):
+        if action == 'application_control':
+            if not self.application_control: raise ValueError('Application controls are unavailable in this preview')
+            return self.application_control.request(args[0])
+        if action == 'scan_prepare': return self.calibration_print.prepare(scan=True)
+        if action == 'scan_upload': return self.scan_alignment.upload(*args)
+        if action == 'scan_propose': return self.scan_alignment.propose(args[0])
+        if action == 'scan_apply': return self.scan_alignment.apply(args[0])
         if action == 'overlay_settings': return self.save_overlay_settings(args[0])
         if action == 'calibration_prepare': return self.calibration_print.prepare()
         if action == 'calibration_print': return self.calibration_print.print_once(args[0]['id'])

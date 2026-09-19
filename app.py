@@ -171,10 +171,28 @@ def create_app(engine):
 
     @app.post('/api/operator-tools/<action>')
     def operator_tools_action(action):
-        if action not in ('calibration_prepare','calibration_print',
+        if action not in ('scan_prepare', 'scan_propose', 'scan_apply', 'calibration_prepare','calibration_print',
                           'calibration_measure','calibration_acknowledge'):
             abort(404)
         return jsonify(engine.request(action,request.get_json(silent=True) or {}).result(timeout=130))
+
+    @app.get('/api/scan-alignment')
+    def scan_alignment_status():
+        return jsonify(engine.scan_alignment.status())
+
+    @app.post('/api/scan-alignment/<ident>/<int:strip>')
+    def scan_alignment_upload(ident, strip):
+        request.max_content_length = 40 * 1024 * 1024
+        if 'file' not in request.files: raise ValueError('Choose a scan file')
+        return jsonify(engine.request('scan_upload', ident, strip, request.files['file'].read()).result(timeout=130))
+
+    @app.get('/api/scan-alignment/<ident>/preview/<scan_id>.jpg')
+    def scan_alignment_preview(ident, scan_id):
+        if not re.fullmatch('[0-9a-f]{32}', scan_id): abort(404)
+        directory = engine.calibration_print.directory(ident)
+        path = directory / f'scan-{scan_id}.jpg'
+        if not path.is_file(): abort(404)
+        return send_file(path, mimetype='image/jpeg')
 
     @app.post('/api/calibration')
     def calibration():
@@ -189,6 +207,10 @@ def create_app(engine):
     @app.post('/api/printing-settings')
     def printing_settings():
         return jsonify(engine.request('printing_settings', request.get_json()).result(timeout=130))
+
+    @app.post('/api/application-control')
+    def application_control():
+        return jsonify(engine.request('application_control', request.get_json()).result(timeout=130))
 
     @app.post('/api/overlay-settings')
     def overlay_settings():
@@ -267,7 +289,9 @@ def main():
     parser.add_argument('--kiosk', action='store_true', help='Serve the guest kiosk and protect operator controls')
     parser.add_argument('--ds40-profile', action='store_true', help='Apply the accepted DS40 calibration for new batches')
     parser.add_argument('--live-printing', action='store_true', help='Explicitly authorize one automatic print per new software batch')
+    parser.add_argument('--dry-run', action='store_true', help='Keep printing disabled, including after an operator restart')
     args = parser.parse_args()
+    if args.live_printing and args.dry_run: parser.error('Choose live printing or dry run, not both')
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     if args.discover:
         print(json.dumps(discover(), indent=2))
@@ -285,6 +309,8 @@ def main():
     if args.ds40_profile:
         from qualification import DS40_OPTIONS, DS40_OFFSETS
         config['printer'].update(queue='DNP_DS40', options=dict(DS40_OPTIONS), strip_offsets_px=list(DS40_OFFSETS))
+    if args.dry_run:
+        config['printer'].update(enabled=False, software_print_authorized=False)
     if args.live_printing:
         if not config.get('kiosk_mode') or config['demo']:
             raise ValueError('Live printing requires a real-camera kiosk configuration')
@@ -300,10 +326,14 @@ def main():
     signal.signal(signal.SIGTERM, terminate)
     lock = ProcessLock(config['data_dir'])
     engine = None
+    server = None
     try:
         adapters = ({c: DemoCamera(Path(config['data_dir']) / 'demo-cards', c) for c in ('A', 'B')}
                     if config['demo'] else live_cameras(config))
         engine = Engine(config, adapters)
+        from application_control import ApplicationControl
+        engine.application_control = ApplicationControl(engine, args.config, args.dev_server)
+        engine.application_control.start()
         app = create_app(engine)
         engine.start()
         if args.open_pages:
@@ -315,12 +345,18 @@ def main():
         if args.dev_server:
             app.run(host=config['host'], port=config['port'], threaded=True, use_reloader=False)
         else:
-            from waitress import serve
-            serve(app, host=config['host'], port=config['port'], threads=4)
+            from waitress import create_server
+            server = create_server(app, host=config['host'], port=config['port'], threads=4)
+            server.print_listen('Serving on http://{}:{}')
+            server.run()
+    except KeyboardInterrupt:
+        pass
     finally:
+        if server is not None: server.close()
         if engine is not None:
             engine.stop()
         lock.close()
+    if engine is not None: engine.application_control.finish()
 
 
 if __name__ == '__main__':

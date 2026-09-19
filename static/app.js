@@ -12,6 +12,7 @@ let extrasLoaded = false;
 let overlaySettingsLoaded = false;
 const requestJson = window.StripshotRequestJson;
 const descriptions = {
+  stopping: ['Stopping Stripshot', 'Closing the booth and releasing the cameras…'],
   reconnecting: ['Reconnecting cameras', 'Verifying camera identities and restoring previews. No shutter is issued.'],
   capturing: ['Taking your photos', 'Eight paired rounds, with previews between shots.'],
   capture_held: ['Capture paused', 'Review the saved shutter records before resuming or abandoning.'],
@@ -28,6 +29,7 @@ async function refresh() {
   refreshing = true;
   try {
     const state = await requestJson('/api/status');
+    if (typeof updateApplicationControls === 'function') updateApplicationControls(state);
     if ($('printing-toggle')) {
       printingEnabled = state.printing_enabled;
       $('printing-toggle').disabled = busy || !state.printing_change_available;
@@ -39,6 +41,8 @@ async function refresh() {
       state.overlay_settings.forEach((settings, i) => {
         $('overlay-scale-' + (i + 1)).value = settings.scale_x_percent;
         $('overlay-offset-' + (i + 1)).value = settings.offset_x_px;
+        $('overlay-scale-y-' + (i + 1)).value = settings.scale_y_percent ?? 100;
+        $('overlay-offset-y-' + (i + 1)).value = settings.offset_y_px ?? 0;
         previewOverlay(i + 1);
       });
       overlaySettingsLoaded = true;
@@ -119,6 +123,7 @@ async function refresh() {
     $('reset').disabled = true;
     if ($('capture')) $('capture').disabled = true;
     if ($('demo')) $('demo').disabled = true;
+    if (typeof applicationDisconnected === 'function') applicationDisconnected();
   } finally { refreshing = false; }
 }
 async function post(url, body, json = false) {
@@ -134,6 +139,7 @@ async function post(url, body, json = false) {
     busy = false;
     buttons.forEach(([button, disabled]) => button.disabled = disabled);
     if (typeof refreshCalibrationButtons === 'function') refreshCalibrationButtons();
+    if (typeof refreshScanButtons === 'function') refreshScanButtons();
     await refresh();
   }
 }
@@ -200,6 +206,17 @@ function previewOverlay(i) {
   offsetInput.setCustomValidity('');
   if (!Number.isFinite(scale) || scale < 10 || scale > 100) return false;
   const width = Math.round(600 * scale / 100);
+  const scaleY = Number($('overlay-scale-y-' + i).value);
+  const offsetY = Number($('overlay-offset-y-' + i).value);
+  const yInput = $('overlay-offset-y-' + i);
+  yInput.setCustomValidity('');
+  if (!Number.isFinite(scaleY) || scaleY < 10 || scaleY > 100) return false;
+  const height = Math.round(1800 * scaleY / 100), top = Math.floor((1800-height)/2);
+  yInput.min = -top; yInput.max = 1800-height-top;
+  if (!Number.isInteger(offsetY) || offsetY < -top || offsetY > 1800-height-top) {
+    yInput.setCustomValidity('This vertical offset would crop the PNG. Reduce the offset or height.');
+    return false;
+  }
   const left = Math.floor((600 - width) / 2);
   offsetInput.min = -left;
   offsetInput.max = 600 - width - left;
@@ -210,11 +227,12 @@ function previewOverlay(i) {
   }
   // Match the renderer's whole-pixel centering, even at odd widths.
   const centerAdjustment = Math.floor((600 - width) / 2) - (600 - width) / 2;
-  $('overlay-' + i).style.transform = `translateX(${(offset + centerAdjustment) / 6}%) scaleX(${width / 600})`;
+  const yAdjustment = top - (1800-height)/2;
+  $('overlay-' + i).style.transform = `translate(${(offset + centerAdjustment) / 6}%, ${(offsetY + yAdjustment) / 18}%) scale(${width / 600}, ${height / 1800})`;
   return true;
 }
 for (let i = 1; i <= 4; i++) {
-  for (const field of ['scale', 'offset']) $('overlay-' + field + '-' + i).oninput = () => {
+  for (const field of ['scale', 'offset', 'scale-y', 'offset-y']) $('overlay-' + field + '-' + i).oninput = () => {
     const fits = previewOverlay(i);
     $('overlay-settings-message').textContent = fits
       ? 'Unsaved PNG adjustments. Save to apply to future sheets.'
@@ -223,6 +241,8 @@ for (let i = 1; i <= 4; i++) {
   $('overlay-reset-' + i).onclick = () => {
     $('overlay-scale-' + i).value = 100;
     $('overlay-offset-' + i).value = 0;
+    $('overlay-scale-y-' + i).value = 100;
+    $('overlay-offset-y-' + i).value = 0;
     previewOverlay(i);
     $('overlay-settings-message').textContent = `PNG ${i} reset in preview. Save to apply.`;
   };
@@ -237,6 +257,8 @@ $('overlay-settings-form').onsubmit = async event => {
   const settings = [1, 2, 3, 4].map(i => ({
     scale_x_percent: Number($('overlay-scale-' + i).value),
     offset_x_px: Number($('overlay-offset-' + i).value),
+    ...(Number($('overlay-scale-y-' + i).value) !== 100 || Number($('overlay-offset-y-' + i).value) !== 0
+      ? {scale_y_percent: Number($('overlay-scale-y-' + i).value), offset_y_px: Number($('overlay-offset-y-' + i).value)} : {}),
   }));
   $('overlay-settings-message').textContent = 'Saving PNG adjustments…';
   const ok = await post('/api/overlay-settings', JSON.stringify(settings), true);

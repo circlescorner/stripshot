@@ -18,7 +18,8 @@ def validate_overlay_settings(settings):
     if not isinstance(settings, list) or len(settings) != 4:
         raise ValueError('PNG settings need four strips')
     for strip in settings:
-        if not isinstance(strip, dict) or set(strip) != {'scale_x_percent', 'offset_x_px'}:
+        if (not isinstance(strip, dict) or not {'scale_x_percent', 'offset_x_px'} <= set(strip)
+                or set(strip) - {'scale_x_percent', 'offset_x_px', 'scale_y_percent', 'offset_y_px'}):
             raise ValueError('Each PNG needs scale_x_percent and offset_x_px')
         scale, offset = strip['scale_x_percent'], strip['offset_x_px']
         if type(scale) not in (int, float) or not math.isfinite(scale) or not 10 <= scale <= 100:
@@ -30,17 +31,26 @@ def validate_overlay_settings(settings):
         if not -left <= offset <= STRIP[0] - width - left:
             raise ValueError(f'PNG offset must be between {-left} and {STRIP[0] - width - left} pixels '
                              f'at {scale}% width; shrink the PNG to make room. PNGs are never cropped')
+        scale_y, offset_y = strip.get('scale_y_percent', 100), strip.get('offset_y_px', 0)
+        if type(scale_y) not in (int, float) or not 10 <= scale_y <= 100:
+            raise ValueError('PNG vertical scale must be between 10 and 100 percent')
+        height = int(STRIP[1] * scale_y / 100 + 0.5)
+        top = (STRIP[1] - height) // 2
+        if type(offset_y) is not int or not -top <= offset_y <= STRIP[1] - height - top:
+            raise ValueError('PNG vertical offset would crop the artwork; reduce the offset or height')
 
 
 def position_overlay(overlay, settings):
     """Resize the entire PNG horizontally and place it wholly inside its strip."""
     validate_overlay_settings([settings] * 4)
     width = int(STRIP[0] * settings['scale_x_percent'] / 100 + 0.5)
+    height = int(STRIP[1] * settings.get('scale_y_percent', 100) / 100 + 0.5)
     artwork = overlay.convert('RGBA')
-    if width != STRIP[0]:
-        artwork = artwork.resize((width, STRIP[1]), Image.Resampling.LANCZOS)
+    if (width, height) != STRIP:
+        artwork = artwork.resize((width, height), Image.Resampling.LANCZOS)
     positioned = Image.new('RGBA', STRIP)
-    positioned.paste(artwork, ((STRIP[0] - width) // 2 + settings['offset_x_px'], 0))
+    positioned.paste(artwork, ((STRIP[0] - width) // 2 + settings['offset_x_px'],
+                             (STRIP[1] - height) // 2 + settings.get('offset_y_px', 0)))
     return positioned
 
 

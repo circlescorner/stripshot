@@ -2,9 +2,13 @@
 
 In Operator, scroll to **Four strips. Four signatures.** Each PNG has:
 
-- **Horizontal scale (%)**: 10–100%, centered on its strip. Height stays unchanged.
+- **Horizontal scale (%)**: 10–100%, centered on its strip.
 - **Horizontal offset (pixels)**: positive moves right, negative moves left.
 - A reset button restoring that PNG to 100% width and zero offset in the preview.
+- **Vertical fit**: height percentage and vertical offset, also used by scan alignment.
+
+Use **Scan to align PNG borders** to calculate the settings from separate flatbed
+scans of a marked reference print. See [the scan workflow](SCAN-ALIGNMENT.md).
 
 The whole PNG must fit. At 100% width, its offset must be zero. At 90% width,
 there are 30 pixels of room on each side. The allowed offset range updates as you
@@ -22,7 +26,7 @@ The original uploaded files and all existing finished sheets remain unchanged.
 
 Settings survive restart in `operator-overlays.json`. New batches freeze all four
 PNG settings alongside their artwork copies. Older manifests without PNG settings
-use full width and zero PNG offset. Dry runs record their chosen settings in their
+use full width/height and zero PNG offset. Dry runs record their chosen settings in their
 own manifests without changing the completed batch. A backend restart is needed
 to load this update, followed by reloading the operator page.
 

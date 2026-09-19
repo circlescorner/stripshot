@@ -3,7 +3,7 @@ const fs=require('node:fs'),vm=require('node:vm');
 const requestJson=require('../static/request-json.js');
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
-const elements=()=>new Proxy({}, {get:(target,id)=>target[id]??=( {style:{},value:10,disabled:false,hidden:false,textContent:'',setCustomValidity(value){this.validationMessage=value;},reportValidity(){},replaceChildren(){},append(){},addEventListener(type,fn){this[type]=fn;}} )});
+const elements=()=>new Proxy({}, {get:(target,id)=>target[id]??=( {style:{},value:10,disabled:false,hidden:false,textContent:'',getAttribute(name){return this[name]??null;},setCustomValidity(value){this.validationMessage=value;},reportValidity(){},replaceChildren(){},append(){},addEventListener(type,fn){this[type]=fn;}} )});
 
 async function requests(){
  const original=global.fetch;
@@ -124,11 +124,11 @@ async function overlays(){
  vm.createContext(context);vm.runInContext(fs.readFileSync('static/app.js','utf8'),context);
  await turn();assert.equal(nodes['overlay-scale-1'].value,90);
  assert.equal(nodes['overlay-offset-1'].value,-12);
- assert.equal(nodes['overlay-1'].style.transform,'translateX(-2%) scaleX(0.9)');
+ assert.equal(nodes['overlay-1'].style.transform,'translate(-2%, 0%) scale(0.9, 1)');
  nodes['overlay-scale-2'].value=80;nodes['overlay-scale-2'].oninput();
  nodes['overlay-offset-2'].value=30;nodes['overlay-offset-2'].oninput();
- assert.equal(nodes['overlay-2'].style.transform,'translateX(5%) scaleX(0.8)');
- assert.equal(nodes['overlay-1'].style.transform,'translateX(-2%) scaleX(0.9)');
+ assert.equal(nodes['overlay-2'].style.transform,'translate(5%, 0%) scale(0.8, 1)');
+ assert.equal(nodes['overlay-1'].style.transform,'translate(-2%, 0%) scale(0.9, 1)');
  await vm.runInContext('refresh()',context);
  assert.equal(nodes['overlay-scale-2'].value,80,'polling preserves unsaved edits');
  const save=nodes['overlay-settings-form'].onsubmit({preventDefault(){}});await turn();
@@ -148,6 +148,68 @@ async function overlays(){
  assert.match(nodes['overlay-offset-2'].validationMessage,/crop/);
  await nodes['overlay-settings-form'].onsubmit({preventDefault(){}});
  assert.equal(calls.length,2,'cropping placement cannot be saved');
+}
+
+async function scanAlignment(){
+ const nodes=elements(),gets=[],posts=[];
+ const state={target:{id:'cal-test',status:'submitted',url:'/calibration-targets/cal-test'},
+  strips:Object.fromEntries([1,2,3,4].map(i=>[i,{scan_id:'scan-'+i,fit_error_px:.4,preview_url:'/scan-'+i+'.jpg'}])),proposal:null};
+ const proposal={id:'proposal-1',applied:false,settings:Array.from({length:4},()=>({scale_x_percent:90,offset_x_px:-20,scale_y_percent:99,offset_y_px:2})),
+  measurements:Array.from({length:4},()=>({before_margins_mm:[-1,1,-1,1],after_margins_mm:[1,1,1,1]}))};
+ const context={$:id=>nodes[id],busy:false,actionError:'Rejected',confirm:()=>true,setTimeout(){},previewOverlay(){},setCalibrationTarget(){},
+  document:{createElement:()=>({append(){}})},FormData:class{append(){}},
+  requestJson:()=>{const d=deferred();gets.push(d);return d.promise;},
+  toolPost:(action,body)=>{const d=deferred();posts.push({action,body,...d});return d.promise;},
+  post:(url,body)=>{const d=deferred();posts.push({url,body,...d});return d.promise;}};
+ vm.createContext(context);vm.runInContext(fs.readFileSync('static/scan-alignment.js','utf8'),context);
+ gets.shift().resolve(state);await turn();
+ assert.equal(nodes['scan-calculate'].disabled,false);
+ const calculate=nodes['scan-propose-form'].onsubmit({preventDefault(){}});
+ posts.shift().resolve({...state,proposal});await calculate;
+ assert.equal(nodes['scan-results'].hidden,false);
+ assert.equal(nodes['scan-apply'].disabled,true,'paper-edge review is required');
+ nodes['scan-edges-confirmed'].checked=true;nodes['scan-edges-confirmed'].onchange();
+ assert.equal(nodes['scan-apply'].disabled,false);
+ nodes['scan-clearance'].oninput();assert.equal(nodes['scan-apply'].disabled,true);
+ const refresh=vm.runInContext('refreshScan()',context);gets.shift().resolve({...state,proposal});await refresh;
+ assert.equal(nodes['scan-apply'].disabled,true,'polling cannot resurrect an invalidated proposal');
+ const stale=nodes['scan-propose-form'].onsubmit({preventDefault(){}});
+ nodes['scan-clearance'].oninput();posts.shift().resolve({...state,proposal});await stale;
+ assert.equal(nodes['scan-results'].hidden,true,'late calculation after edited input is discarded');
+ const recalc=nodes['scan-propose-form'].onsubmit({preventDefault(){}});posts.shift().resolve({...state,proposal});await recalc;
+ nodes['scan-edges-confirmed'].checked=true;nodes['scan-edges-confirmed'].onchange();
+ const apply=nodes['scan-apply'].onclick();const action=posts.shift();
+ assert.equal(action.action,'scan_apply');assert.equal(action.body.proposal_id,'proposal-1');
+ action.resolve({...state,proposal:{...proposal,applied:true}});await apply;
+ assert.equal(nodes['scan-apply'].disabled,true);assert.equal(nodes['overlay-scale-y-1'].value,99);
+ nodes['scan-file-1'].files=[{}];const upload=nodes['scan-file-1'].onchange();
+ posts.shift().resolve(false);await upload;
+ assert.equal(nodes['scan-calculate'].disabled,true,'failed replacement cannot use an old scan');
+ assert.equal(nodes['scan-preview-link-1'].hidden,true);
+}
+
+async function applicationControls(){
+ const nodes=elements(),posts=[];let reloads=0;
+ const context={$:id=>nodes[id],busy:false,actionError:'Lost response',confirm:()=>true,
+  window:{location:{reload(){reloads++;}}},
+  post:(url,body)=>{const d=deferred();posts.push({url,body,...d});return d.promise;}};
+ vm.createContext(context);vm.runInContext(fs.readFileSync('static/application-control.js','utf8'),context);
+ vm.runInContext("updateApplicationControls({instance_id:'old',application_control_available:true})",context);
+ assert.equal(nodes['application-restart'].disabled,false);
+ const restarting=nodes['application-restart'].onclick();
+ assert.equal(posts[0].url,'/api/application-control');assert.deepEqual(JSON.parse(posts[0].body),{action:'restart'});
+ await nodes['application-stop'].onclick();assert.equal(posts.length,1,'no second lifecycle request while pending');
+ posts[0].resolve({accepted:true,action:'restart'});await restarting;
+ vm.runInContext('applicationDisconnected()',context);
+ assert.equal(nodes['phase'].textContent,'Restarting Stripshot');
+ vm.runInContext("updateApplicationControls({instance_id:'new',application_control_available:true})",context);
+ assert.equal(reloads,1,'new process refreshes stale operator token');
+ // A rejected request is not retried; fresh state can make controls available again.
+ vm.runInContext("applicationPending=null; updateApplicationControls({instance_id:'new',application_control_available:true})",context);
+ const stopping=nodes['application-stop'].onclick();posts[1].resolve(false);await stopping;
+ assert.match(nodes['application-message'].textContent,/not confirmed/);
+ vm.runInContext("updateApplicationControls({instance_id:'new',application_control_available:true,application_control_action:null})",context);
+ assert.equal(nodes['application-stop'].disabled,false);assert.equal(posts.length,2);
 }
 
 async function calibration(){
@@ -177,4 +239,4 @@ async function calibration(){
  old.resolve(target('second'));await oldRefresh;
  assert.match(nodes['calibration-target-status'].textContent,/third/,'stale polling cannot replace a newly prepared target');
 }
-(async()=>{await requests();await kiosk();await operator();await printing();await overlays();await calibration();console.log('JSON deadlines, kiosk uncertainty/stale status, PNG adjustments, calibration proposal invalidation: PASS');})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{await requests();await kiosk();await operator();await printing();await overlays();await scanAlignment();await applicationControls();await calibration();console.log('JSON deadlines, kiosk recovery, PNG adjustments, scan review, stop/restart controls, calibration invalidation: PASS');})().catch(error=>{console.error(error);process.exitCode=1;});

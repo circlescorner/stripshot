@@ -1,54 +1,57 @@
-......[2026-09-19 03:17:51,289] WARNING in app: Request failed POST /api/operator-tools/calibration_prepare: 403 Forbidden: Reload the dashboard before making changes
-[2026-09-19 03:17:51,290] WARNING in app: Request failed POST /api/operator-tools/calibration_print: 403 Forbidden: Reload the dashboard before making changes
-[2026-09-19 03:17:51,291] WARNING in app: Request failed POST /api/operator-tools/calibration_measure: 403 Forbidden: Reload the dashboard before making changes
+.[2026-09-19 04:08:13,085] WARNING in app: Request failed POST /api/application-control: 403 Forbidden: Reload the dashboard before making changes
+..........[2026-09-19 04:08:22,116] WARNING in app: Request failed POST /api/operator-tools/calibration_prepare: 403 Forbidden: Reload the dashboard before making changes
+[2026-09-19 04:08:22,117] WARNING in app: Request failed POST /api/operator-tools/calibration_print: 403 Forbidden: Reload the dashboard before making changes
+[2026-09-19 04:08:22,118] WARNING in app: Request failed POST /api/operator-tools/calibration_measure: 403 Forbidden: Reload the dashboard before making changes
 ......Stripshot is already running. Opening its operator page; no second owner started.
 ...Stripshot is already starting in another terminal window.
-......[2026-09-19 03:17:52,106] WARNING in app: Request failed POST /api/capture: 403 Forbidden: Reload the dashboard before making changes
-[2026-09-19 03:17:52,280] WARNING in app: Request failed POST /api/capture: A batch is already active or the cameras are not ready
-..[2026-09-19 03:17:55,818] WARNING in app: Request failed POST /api/reset: 403 Forbidden: Reload the dashboard before making changes
-.....[2026-09-19 03:18:03,541] WARNING in app: Request failed POST /api/layout: 403 Forbidden: Reload the dashboard before making changes
-......[2026-09-19 03:18:04,268] WARNING in app: Request failed POST /api/slideshow-settings: 403 Forbidden: Reload the dashboard before making changes
-.[2026-09-19 03:18:04,917] WARNING in app: Request failed GET /dry-runs/dry-nope/sheet.png: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
-...[2026-09-19 03:18:08,721] WARNING in app: Request failed POST /api/overlay-settings: 403 Forbidden: Reload the dashboard before making changes
-[2026-09-19 03:18:08,754] WARNING in app: Request failed POST /api/overlay-settings: PNG settings need four strips
-...........[2026-09-19 03:18:19,602] WARNING in app: Request failed GET /view/C: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
-..........[2026-09-19 03:18:21,407] WARNING in app: Request failed POST /api/preview-settings: 403 Forbidden: Reload the dashboard before making changes
-.........[2026-09-19 03:18:33,262] WARNING in app: Request failed POST /api/printing-settings: 403 Forbidden: Reload the dashboard before making changes
-[2026-09-19 03:18:33,263] WARNING in app: Request failed POST /api/printing-settings: 403 Forbidden: Reload the dashboard before making changes
-.............[2026-09-19 03:18:35,628] WARNING in app: Request failed GET /photos/batch-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/manifest.json: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
-[2026-09-19 03:18:35,629] WARNING in app: Request failed GET /photos/batch-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/A01.jpg: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
-........[2026-09-19 03:18:40,188] WARNING in app: Request failed POST /api/capture: 403 Forbidden: Reload the dashboard before making changes
-............................[2026-09-19 03:19:04,212] WARNING in app: Request failed POST /api/reset: 403 Forbidden: Reload the dashboard before making changes
-[2026-09-19 03:19:04,455] WARNING in app: Request failed GET /batches/not-a-batch/preview.jpg: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+......[2026-09-19 04:08:22,976] WARNING in app: Request failed POST /api/capture: 403 Forbidden: Reload the dashboard before making changes
+[2026-09-19 04:08:23,159] WARNING in app: Request failed POST /api/capture: A batch is already active or the cameras are not ready
+..[2026-09-19 04:08:26,780] WARNING in app: Request failed POST /api/reset: 403 Forbidden: Reload the dashboard before making changes
+.....[2026-09-19 04:08:34,742] WARNING in app: Request failed POST /api/layout: 403 Forbidden: Reload the dashboard before making changes
+......[2026-09-19 04:08:35,518] WARNING in app: Request failed POST /api/slideshow-settings: 403 Forbidden: Reload the dashboard before making changes
+.[2026-09-19 04:08:36,169] WARNING in app: Request failed GET /dry-runs/dry-nope/sheet.png: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+...[2026-09-19 04:08:40,014] WARNING in app: Request failed POST /api/overlay-settings: 403 Forbidden: Reload the dashboard before making changes
+[2026-09-19 04:08:40,045] WARNING in app: Request failed POST /api/overlay-settings: PNG settings need four strips
+...........[2026-09-19 04:08:50,584] WARNING in app: Request failed GET /view/C: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+..........[2026-09-19 04:08:52,148] WARNING in app: Request failed POST /api/preview-settings: 403 Forbidden: Reload the dashboard before making changes
+.........[2026-09-19 04:09:03,780] WARNING in app: Request failed POST /api/printing-settings: 403 Forbidden: Reload the dashboard before making changes
+[2026-09-19 04:09:03,780] WARNING in app: Request failed POST /api/printing-settings: 403 Forbidden: Reload the dashboard before making changes
+.............[2026-09-19 04:09:06,270] WARNING in app: Request failed GET /photos/batch-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/manifest.json: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+[2026-09-19 04:09:06,271] WARNING in app: Request failed GET /photos/batch-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/A01.jpg: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+.........[2026-09-19 04:09:14,820] WARNING in app: Request failed POST /api/scan-alignment/cal-d0b4b6a35b694059a67fe698fffedd9d/1: 403 Forbidden: Reload the dashboard before making changes
+[2026-09-19 04:09:15,086] WARNING in app: Request failed GET /api/scan-alignment/cal-d0b4b6a35b694059a67fe698fffedd9d/preview/not-a-scan.jpg: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+.....[2026-09-19 04:09:20,788] WARNING in app: Request failed POST /api/capture: 403 Forbidden: Reload the dashboard before making changes
+............................[2026-09-19 04:09:45,887] WARNING in app: Request failed POST /api/reset: 403 Forbidden: Reload the dashboard before making changes
+[2026-09-19 04:09:46,039] WARNING in app: Request failed GET /batches/not-a-batch/preview.jpg: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
 ....Batch preparation failed
 Traceback (most recent call last):
-  File "/home/m/Documents/Codex/2026-09-18/paste-this-into-the-next-task-2/work/repository/batch.py", line 421, in run
+  File "/home/m/Documents/Codex/2026-09-18/paste-this-into-the-next-task-2/work/repository/batch.py", line 435, in run
     self.process()
     ~~~~~~~~~~~~^^
-  File "/home/m/Documents/Codex/2026-09-18/paste-this-into-the-next-task-2/work/repository/batch.py", line 254, in process
+  File "/home/m/Documents/Codex/2026-09-18/paste-this-into-the-next-task-2/work/repository/batch.py", line 261, in process
     validate_jpeg(path)
     ~~~~~~~~~~~~~^^^^^^
-  File "/home/m/Documents/Codex/2026-09-18/paste-this-into-the-next-task-2/work/repository/render.py", line 83, in validate_jpeg
+  File "/home/m/Documents/Codex/2026-09-18/paste-this-into-the-next-task-2/work/repository/render.py", line 93, in validate_jpeg
     with Image.open(path) as img:
          ~~~~~~~~~~^^^^^^
   File "/usr/lib/python3/dist-packages/PIL/Image.py", line 3579, in open
     raise UnidentifiedImageError(msg)
-PIL.UnidentifiedImageError: cannot identify image file '/tmp/tmp2z6h_8_u/data/batches/batch-98a91e96fd91477bbf3a3a8c744de8bc/A01.jpg'
+PIL.UnidentifiedImageError: cannot identify image file '/tmp/tmpyyn75gow/data/batches/batch-df501f10da78403f8396ea30296e9f8b/A01.jpg'
 ...Coordinator stopped
 Traceback (most recent call last):
-  File "/home/m/Documents/Codex/2026-09-18/paste-this-into-the-next-task-2/work/repository/batch.py", line 375, in run
+  File "/home/m/Documents/Codex/2026-09-18/paste-this-into-the-next-task-2/work/repository/batch.py", line 389, in run
     self.initialize()
     ~~~~~~~~~~~~~~~^^
-  File "/home/m/Documents/Codex/2026-09-18/paste-this-into-the-next-task-2/work/repository/batch.py", line 179, in initialize
+  File "/home/m/Documents/Codex/2026-09-18/paste-this-into-the-next-task-2/work/repository/batch.py", line 186, in initialize
     raise RuntimeError(f'Camera {c} is missing saved batch files; restore its SD card')
 RuntimeError: Camera A is missing saved batch files; restore its SD card
 ..........
 ----------------------------------------------------------------------
-Ran 134 tests in 87.916s
+Ran 145 tests in 103.050s
 
 OK
 
-Node: all five suites passed (browser-controls, display, monitor-recovery,
-resilient-loop, spacebar), including independent PNG edits and no-crop validation.
-Browser: isolated operator controls, reload persistence, invalid-placement rejection,
-and dry-run completion passed; console errors: none.
+All five Node suites passed, including scan review/stale proposal guards and application-control recovery.
+Isolated browser: four synthetic scan uploads, measured correction review and apply; no console errors.
+Isolated simulated booth: Restart automatically reloaded the operator page; Stop exited cleanly and showed offline.
+No physical capture, print, or real PNG setting changes during tests.

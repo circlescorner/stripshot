@@ -24,3 +24,7 @@
 .overlay-fields button{margin-top:4px}
 #overlay-settings-form>.hint{text-align:left;margin-top:14px}
 #overlay-save{margin-top:16px}
+.application-panel{padding:18px 0;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}.application-panel strong{font-size:13px;margin-right:auto}.application-panel .hint{flex-basis:100%;margin:0}
+.overlay-fields details label{display:block;margin-top:10px}
+.scan-panel{margin:24px 0}.scan-panel p,.scan-panel li{font-size:13px;line-height:1.7}.scan-grid{margin:24px 0}.scan-grid h3{margin-bottom:10px}.scan-grid img{display:block;max-width:100%;max-height:300px;margin:12px auto}.scan-grid a{font-size:12px;color:var(--ink)}
+#scan-clearance{width:85px;padding:8px;margin-left:12px}#scan-propose-form button{margin-top:14px}.scan-table-wrap{overflow-x:auto;margin:16px 0}.scan-table-wrap table{border-collapse:collapse;width:100%;font-size:12px}.scan-table-wrap th,.scan-table-wrap td{padding:10px;border-bottom:1px solid var(--line);text-align:left}#scan-results{margin-top:24px}#scan-results>label{font-size:13px;display:block;margin:18px 0}

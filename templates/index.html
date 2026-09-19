@@ -9,6 +9,8 @@
   <script defer src="/static/spacebar.js"></script>
   <script defer src="/static/app.js"></script>
 <script defer src="/static/operator-calibration.js"></script>
+<script defer src="/static/scan-alignment.js"></script>
+<script defer src="/static/application-control.js"></script>
 <script defer src="/static/keep-awake.js"></script>
 </head>
 <body>
@@ -22,6 +24,10 @@
     <a href="/slideshow" target="_blank" rel="noopener">Slideshow</a>
     <a href="/photos" target="_blank" rel="noopener">Saved photos & sheets</a>
   </nav>
+  <section class="application-panel" aria-label="Application controls">
+    <strong>Stripshot controls</strong><button id="application-stop" type="button" disabled>Stop Stripshot</button><button id="application-restart" type="button" disabled>Restart Stripshot</button>
+    <p id="application-message" class="hint" role="status">Available between sessions. Restart preserves the current printing mode and saved settings. After Stop, use the desktop icon to start again.</p>
+  </section>
   <section class="intro"><div><p class="eyebrow">TWO CAMERAS. ONE GOOD MOMENT.</p><h1>From shutter<br>to keepsake.</h1><p class="subtitle">Eight photos each. Four strips. All together.</p></div><div class="status-block"><span class="pulse" id="pulse"></span><p id="phase">Starting up</p><small id="phase-detail">Connecting to the cameras…</small></div></section>
   <div id="notice" role="status" aria-live="polite" hidden></div>
   <section class="collection panel" aria-label="Current batch">
@@ -74,6 +80,32 @@
     <p id="photo-folder"></p>
     <p><a href="/photos" target="_blank" rel="noopener">View saved photos and finished sheets</a></p>
   </section>
+  <section class="panel scan-panel" aria-label="Scan alignment">
+    <div class="section-head"><h2>Scan to align PNG borders</h2><span class="eyebrow">ONE SCAN PER STRIP</span></div>
+    <p>Print a numbered reference sheet, then scan its four cut strips separately. The reference marks measure where the printer puts the artwork relative to each paper edge.</p>
+    <ol><li>Prepare and print the reference sheet below. Keep the four numbered strips.</li><li>Scan each strip at <strong>300 or 600 DPI</strong> with a dark matte sheet behind it. Leave dark space around all four paper edges. Turn off automatic cropping, resizing and perspective correction.</li><li>Upload strips 1–4, check the green outlines trace the actual cut paper, then calculate and review the correction.</li></ol>
+    <button id="scan-prepare" type="button">Prepare scan reference — no print</button>
+    <a id="scan-target-link" target="_blank" rel="noopener" hidden>Preview reference sheet</a>
+    <button id="scan-print" type="button" disabled>Print one scan reference sheet</button>
+    <p id="scan-target-status" class="hint" role="status"></p>
+    <div class="strip-grid scan-grid">{% for i in range(1,5) %}<article>
+      <h3>Scan {{ i }} — strip {{ i }}</h3>
+      <label class="upload">Upload strip {{ i }} scan<input id="scan-file-{{ i }}" type="file" accept="image/png,image/jpeg,image/tiff,.tif,.tiff" disabled></label>
+      <p id="scan-strip-status-{{ i }}" class="hint">Waiting for a scan</p>
+      <a id="scan-preview-link-{{ i }}" target="_blank" rel="noopener" hidden><img id="scan-preview-{{ i }}" alt="Detected paper edges for strip {{ i }}"><span>Inspect paper edges</span></a>
+    </article>{% endfor %}</div>
+    <form id="scan-propose-form"><label for="scan-clearance">Minimum border clearance (mm)</label><input id="scan-clearance" type="number" min="0" max="3" step="0.1" value="0.5" required>
+      <p class="hint">0.5 mm leaves a little room for cut variation. The full PNG is fitted and centered; no artwork is cropped. Available print area may require a larger equal margin. This adjusts PNGs only.</p>
+      <button id="scan-calculate" type="submit" disabled>Calculate alignment from scans</button>
+    </form>
+    <div id="scan-results" hidden><h3>Review proposed PNG alignment</h3><div class="scan-table-wrap"><table><thead><tr><th>Strip</th><th>Width / height</th><th>X / Y offset</th><th>Scanned L / R / T / B margins</th><th>Predicted L / R / T / B margins</th></tr></thead><tbody id="scan-result-rows"></tbody></table></div>
+      <p class="hint">Negative scanned margins mean an edge would be outside the paper. Margins are approximate millimeters at 300 DPI. Green outlines must follow the paper edge, not a printed border. Scanner detection and printer repeatability limit accuracy.</p>
+      <label><input id="scan-edges-confirmed" type="checkbox"> I checked all four green paper outlines.</label>
+      <button id="scan-apply" type="button" disabled>Apply this PNG alignment</button>
+    </div>
+    <p id="scan-message" role="status"></p>
+    <p class="hint">After applying, print and scan a fresh reference to verify the result. Ordinary photo-strip scans cannot be measured reliably here; use this page’s numbered reference sheet. Preparing, uploading and calculating never print or change alignment.</p>
+  </section>
   <section class="panel" aria-label="Calibration">
     <h2>Calibration — strip centering</h2>
     <form id="calibration-form"><div class="layout-fields">{% for i in range(1,5) %}
@@ -118,10 +150,11 @@
           <label for="overlay-scale-{{ i }}">Horizontal scale (%) — PNG {{ i }}</label><input id="overlay-scale-{{ i }}" type="number" min="10" max="100" step="0.1" value="100" required>
           <label for="overlay-offset-{{ i }}">Horizontal offset (pixels) — PNG {{ i }}</label><input id="overlay-offset-{{ i }}" type="number" min="-600" max="600" step="1" value="0" required>
           <p id="overlay-fit-{{ i }}" class="hint">At 100% width, offset must be 0. Shrink to make room to move.</p>
+          <details><summary>Vertical fit</summary><label for="overlay-scale-y-{{ i }}">Vertical scale (%) — PNG {{ i }}</label><input id="overlay-scale-y-{{ i }}" type="number" min="10" max="100" step="0.1" value="100" required><label for="overlay-offset-y-{{ i }}">Vertical offset (pixels) — PNG {{ i }}</label><input id="overlay-offset-y-{{ i }}" type="number" min="-810" max="810" step="1" value="0" required></details>
           <button type="button" id="overlay-reset-{{ i }}">Reset PNG {{ i }} position &amp; scale</button>
         </div>
       </article>{% endfor %}</div>
-      <p class="hint">The complete PNG is always kept. Each PNG scales from its center; height stays unchanged. Width can be 10–100%. Positive offsets move right, negative left (300 pixels = 1 inch). Shrink the PNG to make room to move it. Values that would put an edge outside the strip cannot be saved. Calibration moves photos only, so it cannot crop your PNG.</p>
+      <p class="hint">The complete PNG is always kept. Each PNG scales from its center. Width and height can be 10–100%. Positive offsets move right/down, negative left/up (300 pixels = 1 inch). Shrink the PNG to make room to move it. Values that would put an edge outside the strip cannot be saved. Calibration moves photos only, so it cannot crop your PNG.</p>
       <p class="hint">Thumbnails preview your PNG edits. Save adjustments before rendering a dry run to see the finished sheet. Changes are retained after restart and apply to future batches; active batches keep their frozen artwork settings.</p>
       <button type="submit" id="overlay-save" class="primary" disabled>Save PNG adjustments</button>
       <p id="overlay-settings-message" class="hint" role="status"></p>
