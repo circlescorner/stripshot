@@ -16,11 +16,14 @@ from storage import atomic_bytes, save_json
 from software import SoftwareWorkflow
 from recovery import CameraRecovery
 from config import validate_preview_fps
+from gallery import Gallery
+from display_settings import DisplaySettings
+from operator_tools import OperatorTools
 
 LOG = logging.getLogger(__name__)
 
 
-class Engine(CameraRecovery, SoftwareWorkflow):
+class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
     def __init__(self, config, adapters):
         self.config = config
         self.software = config['camera_mode'] == 'software'
@@ -42,6 +45,9 @@ class Engine(CameraRecovery, SoftwareWorkflow):
         self.layout = (json.loads(self.layout_path.read_text()) if self.layout_path.exists()
                        else copy.deepcopy(config['layout']))
         validate_layout(self.layout)
+        self.initialize_display()
+        self.initialize_operator_tools()
+        self.gallery = Gallery(self.root)
         self.started_at = time.monotonic()
         self.lock = threading.RLock()
         self.events, self.commands = queue.Queue(), queue.Queue()
@@ -106,6 +112,9 @@ class Engine(CameraRecovery, SoftwareWorkflow):
     def status(self):
         with self.lock:
             return {'phase': self.phase, 'error': self.error,
+                    'slideshow': copy.deepcopy(self.display),
+                    'calibration': {'strip_offsets_px':list(self.config['printer'].get('strip_offsets_px',[0]*4))},
+                    'countdown_seconds':self.countdown_seconds,
                     'preview_fps': self.config.get('preview_fps', 0),
                     'layout': copy.deepcopy(self.layout),
                     'uptime_seconds': int(time.monotonic() - self.started_at),
@@ -192,6 +201,7 @@ class Engine(CameraRecovery, SoftwareWorkflow):
             self.state['current'] = {
                 'id': batch_id, 'stage': 'preparing', 'created_at': time.time(),
                 'files': {c: self.state['pending'][c][:8] for c in ('A', 'B')},
+                'countdown_seconds':self.countdown_seconds,
                 'layout': copy.deepcopy(self.layout),
                 'printer': copy.deepcopy(self.config['printer']), 'overlays': overlays,
             }
@@ -265,6 +275,14 @@ class Engine(CameraRecovery, SoftwareWorkflow):
             self.phase, self.error = 'watching', None
 
     def action(self, action, *args):
+        if action == 'dry_run':
+            return self.render_dry_run()
+        if action == 'slideshow_settings':
+            return self.save_display(args[0])
+        if action == 'calibration':
+            return self.apply_calibration(args[0])
+        if action == 'session_settings':
+            return self.save_session(args[0])
         if action == 'reconnect':
             return self.begin_reconnect()
         if action in ('capture', 'resume_capture', 'abandon_capture'):
@@ -363,8 +381,8 @@ class Engine(CameraRecovery, SoftwareWorkflow):
                     future = None
                 if future is not None:
                     try:
-                        self.action(action, *args)
-                        future.set_result(True)
+                        result = self.action(action, *args)
+                        future.set_result(True if result is None else result)
                     except Exception as exc:
                         future.set_exception(exc)
                 try:

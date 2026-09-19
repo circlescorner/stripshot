@@ -248,3 +248,7 @@ deployment, follow the [stopped-state migration plan](docs/DATA-MIGRATION.md).
 [Live preview speed](docs/PREVIEW-SPEED.md) can now be saved in the operator dashboard
 (1–15 FPS target for both cameras, with actual FPS shown). Start with 5 FPS; hardware
 may deliver less than the requested rate. Change only between batches.
+
+[Operator preview and slideshow](docs/OPERATOR-PREVIEW-AND-SLIDESHOW.md) documents the
+paper-free rerender button, visible strip calibration, configurable slideshow with
+arrow keys/shuffle, and session-aware monitor messages with a real photo countdown.

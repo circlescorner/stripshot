@@ -84,3 +84,12 @@ monitor/deployment setup. New branding, independent photo ordering, guarded seri
 reconnection and HTTP polling changes are documented in WEDDING-RECOVERY-UPDATE.md.
 These changes received software/browser checks only; no new physical test was run.
 DATA-MIGRATION.md plans a stopped, locked, checksum-verified migration from /tmp.
+
+## Operator previews and slideshow
+
+The user reports the new live-view speed looks good and things seem to be working.
+This is usability confirmation, not an additional measured endurance qualification.
+Dry rerender, visible custom calibration, slideshow, and countdown/session messages
+were added with simulated/browser verification. No new physical print or exposure
+was issued. Custom calibration offsets are explicitly operator-selected and have
+not been physically requalified; the accepted offsets remain available and default.

@@ -1,0 +1,95 @@
+"""Operator calibration and paper-free rendering of completed originals."""
+import copy
+import hashlib
+import json
+import time
+import uuid
+from render import render_sheet, validate_strip_offsets
+from storage import atomic_bytes, save_json
+from qualification import validate_software_printing
+
+
+class OperatorTools:
+    def initialize_operator_tools(self):
+        self.calibration_path = self.root / 'operator-calibration.json'
+        if self.calibration_path.exists():
+            self.apply_calibration(json.loads(self.calibration_path.read_text()), persist=False)
+        self.session_path = self.root / 'operator-session.json'
+        self.countdown_seconds = self.config.get('countdown_seconds', 0)
+        if self.session_path.exists():
+            self.countdown_seconds = json.loads(self.session_path.read_text())['countdown_seconds']
+        self.validate_countdown(self.countdown_seconds)
+        self.next_photo = None
+        self.round_number = None
+
+    @staticmethod
+    def validate_countdown(seconds):
+        if type(seconds) is not int or not 0 <= seconds <= 10:
+            raise ValueError('Countdown must be a whole number from 0 to 10 seconds')
+
+    def save_session(self, candidate):
+        if not isinstance(candidate,dict) or set(candidate) != {'countdown_seconds'}:
+            raise ValueError('Session settings need countdown_seconds')
+        self.validate_countdown(candidate['countdown_seconds'])
+        with self.lock:
+            save_json(self.session_path,candidate)
+            self.countdown_seconds = candidate['countdown_seconds']
+
+    def apply_calibration(self, candidate, persist=True):
+        if not isinstance(candidate,dict) or set(candidate) != {'strip_offsets_px'}:
+            raise ValueError('Calibration needs four strip offsets')
+        validate_strip_offsets(candidate['strip_offsets_px'])
+        printer = copy.deepcopy(self.config['printer'])
+        printer.update(strip_offsets_px=list(candidate['strip_offsets_px']),
+                       operator_calibration_authorized=True)
+        if self.software:
+            validate_software_printing(printer,self.config['demo'])
+        if persist:
+            with self.lock:
+                save_json(self.calibration_path,candidate)
+                self.config['printer'] = printer
+        else:
+            self.config['printer'] = printer
+
+    def render_dry_run(self):
+        with self.lock:
+            if self.state['current'] or self.phase != 'watching':
+                raise ValueError('Wait until the current session is finished before rendering a dry run')
+            batch = copy.deepcopy(self.state['last'])
+            if not batch or batch.get('stage') != 'complete':
+                raise ValueError('Complete one photo session first; dry run reuses its sixteen saved originals')
+            layout = copy.deepcopy(self.layout)
+            offsets = list(self.config['printer'].get('strip_offsets_px',[0]*4))
+        source = self.root / 'batches' / batch['id']
+        photos = {c:[source/f'{c}{n:02d}.jpg' for n in range(1,9)] for c in ('A','B')}
+        hashes = {}
+        for c, paths in photos.items():
+            for index,path in enumerate(paths):
+                actual = hashlib.sha256(path.read_bytes()).hexdigest()
+                if batch.get('software') and actual != batch['shots'][c][index].get('sha256'):
+                    raise ValueError('Saved original hash mismatch; preserve evidence and inspect this batch')
+                hashes[path.name] = actual
+        ident = 'dry-' + uuid.uuid4().hex
+        output = self.root / 'dry-runs' / ident
+        output.mkdir(parents=True)
+        overlays=[]
+        for n in range(1,5):
+            path=self.root/'overlays'/f'strip{n}.png'
+            target=output/f'overlay{n}.png'
+            if path.exists(): atomic_bytes(target,path.read_bytes()); overlays.append(target)
+            else: overlays.append(None)
+        render_sheet(photos,overlays,layout,output/'sheet.png',strip_offsets_px=offsets)
+        save_json(output/'manifest.json',{'id':ident,'source_batch':batch['id'],
+                  'created_at':time.time(),'layout':layout,'strip_offsets_px':offsets,
+                  'original_hashes':hashes,'overlays':[p.name if p else None for p in overlays],
+                  'status':'render_only_no_capture_no_print'})
+        return {'id':ident,'url':'/dry-runs/'+ident}
+
+    def monitor_status(self):
+        with self.lock:
+            current=self.state['current']
+            active=bool(current)
+            return {'active':active, 'phase':self.phase,
+                    'round':self.round_number if active else None,
+                    'countdown_remaining':max(0,self.next_photo-time.monotonic())
+                      if active and self.phase == 'capturing' and self.next_photo is not None else None}

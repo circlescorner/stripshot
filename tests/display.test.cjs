@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict');
+const Order=require('../static/slideshow-order.js');
+const text=require('../static/monitor-state.js');
+const order=new Order(()=>0);
+order.update(['a','b','c'],false);assert.equal(order.current,'a');
+order.move(1);assert.equal(order.current,'b');order.move(-1);assert.equal(order.current,'a');
+order.move(-1);assert.equal(order.current,'c');
+order.update(['a','b','c','d'],true);assert.equal(order.current,'c');
+assert.equal(new Set(order.ids).size,4);
+const before=order.current;order.move(1);order.move(-1);assert.equal(order.current,before);
+order.update([],false);assert.equal(order.move(1),null);
+assert.match(text('A',{active:false},null),/unavailable/);
+assert.equal(text('A',{active:true,phase:'capturing'},null),'MalanaphyVick Wedding');
+assert.match(text('B',{active:true,phase:'capturing',round:2},2.1),/^3/);
+assert.equal(text('B',{active:true,phase:'capturing',round:2},null),'Taking photo 2 of 8…');
+assert.match(text('B',{active:true,phase:'capture_held'},2),/paused/);
+assert.match(text('B',null,null),/Reconnecting/);
+console.log('Slideshow navigation/shuffle and monitor session/countdown states: PASS');

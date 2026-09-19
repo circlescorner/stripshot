@@ -59,6 +59,8 @@ class SoftwareWorkflow:
             if any(w.failure for w in self.workers.values()):
                 raise ValueError('Restart after checking camera connections')
             self.freeze(software=True)
+            self.next_photo = None
+            self.round_number = None
             self.phase, self.error = 'capturing', None
         elif action in ('resume_capture', 'abandon_capture'):
             if self.phase != 'capture_held':
@@ -78,6 +80,8 @@ class SoftwareWorkflow:
                 with self.lock:
                     batch['stage'] = 'capturing'
                     self.save()
+                    self.next_photo = None
+                    self.round_number = None
                     self.phase, self.error = 'capturing', None
             else:
                 with self.lock:
@@ -124,6 +128,17 @@ class SoftwareWorkflow:
                     save_json(directory / 'manifest.json', batch)
                     self.phase = 'watching'
                 return
+            # A real schedule: only count down before new shutters, never
+            # estimate when an in-flight native capture will finish.
+            has_unissued = any(not batch['shots'][c][index] for c in ('A','B'))
+            if has_unissued and batch.get('countdown_seconds', 0):
+                if self.next_photo is None:
+                    self.round_number = index + 1
+                    self.next_photo = time.monotonic() + batch['countdown_seconds']
+                if time.monotonic() < self.next_photo:
+                    return
+            self.next_photo = None
+            self.round_number = index + 1
             round_started = time.monotonic()
             sequences = {c: w.frame_sequence for c, w in self.workers.items()}
             for c in ('A', 'B'):
@@ -167,6 +182,7 @@ class SoftwareWorkflow:
                     shot['round_seconds'] = time.monotonic() - round_started
                 self.save()
         except Exception as exc:
+            self.next_photo = None
             with self.lock:
                 batch['stage'] = 'capture_held'
                 batch['capture_error'] = str(exc)

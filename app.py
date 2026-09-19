@@ -9,6 +9,7 @@ import signal
 import getpass
 import secrets
 import time
+import re
 from pathlib import Path
 from flask import Flask, abort, jsonify, render_template, request, send_file, Response, g
 from werkzeug.exceptions import HTTPException
@@ -39,8 +40,8 @@ def create_app(engine):
     @app.before_request
     def protect_actions():
         g.request_started = time.monotonic()
-        public = (request.path in ('/kiosk', '/api/kiosk/status', '/api/capture', '/favicon.ico')
-                  or request.path.startswith(('/static/', '/view/', '/api/preview/'))
+        public = (request.path in ('/kiosk', '/api/kiosk/status', '/api/capture', '/favicon.ico', '/slideshow', '/api/slideshow', '/api/monitor/status')
+                  or request.path.startswith(('/static/', '/view/', '/api/preview/', '/slideshow/photos/'))
                   or request.path == '/' and kiosk_mode)
         if kiosk_mode and not public and not operator_authenticated():
             return Response('Operator sign-in required', 401,
@@ -114,6 +115,64 @@ def create_app(engine):
             raise ValueError('Wait until the appliance is watching')
         engine.request(action).result(timeout=130)
         return jsonify(ok=True)
+
+    @app.get('/api/monitor/status')
+    def monitor_status():
+        return jsonify(engine.monitor_status())
+
+    @app.get('/slideshow')
+    def slideshow():
+        return render_template('slideshow.html')
+
+    @app.get('/api/slideshow')
+    def slideshow_catalog():
+        with engine.lock:
+            settings = dict(engine.display)
+        return jsonify(settings=settings, photos=engine.gallery.catalog(settings['source']))
+
+    @app.get('/slideshow/photos/<batch_id>/<name>')
+    def slideshow_photo(batch_id, name):
+        try:
+            path = engine.gallery.image(batch_id,name)
+        except (OSError, ValueError):
+            abort(404)
+        return send_file(path,mimetype='image/jpeg')
+
+    @app.post('/api/slideshow-settings')
+    def slideshow_settings():
+        engine.request('slideshow_settings',request.get_json()).result(timeout=130)
+        return jsonify(ok=True)
+
+    @app.post('/api/calibration')
+    def calibration():
+        engine.request('calibration',request.get_json()).result(timeout=130)
+        return jsonify(ok=True)
+
+    @app.post('/api/session-settings')
+    def session_settings():
+        engine.request('session_settings',request.get_json()).result(timeout=130)
+        return jsonify(ok=True)
+
+    @app.post('/api/dry-run')
+    def dry_run():
+        return jsonify(engine.request('dry_run').result(timeout=130))
+
+    def dry_run_directory(ident):
+        if not re.fullmatch(r'dry-[0-9a-f]{32}',ident):
+            abort(404)
+        directory = engine.root / 'dry-runs' / ident
+        if not (directory / 'manifest.json').is_file():
+            abort(404)
+        return directory
+
+    @app.get('/dry-runs/<ident>')
+    def dry_run_view(ident):
+        dry_run_directory(ident)
+        return render_template('dry_run.html',ident=ident)
+
+    @app.get('/dry-runs/<ident>/sheet.png')
+    def dry_run_sheet(ident):
+        return send_file(dry_run_directory(ident)/'sheet.png',mimetype='image/png')
 
     @app.post('/api/preview-settings')
     def preview_settings():

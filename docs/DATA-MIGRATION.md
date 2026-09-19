@@ -41,3 +41,7 @@ allow /tmp cleanup before preserving the evidence.
 Never copy live state, merge state files, or reset the binding to bypass a mismatch.
 Do not let the old and new data directories become concurrent independent owners.
 This migration does not establish abrupt power-loss or long-duration qualification.
+
+Additional operator files now include operator-preview.json, operator-calibration.json,
+operator-session.json and operator-slideshow.json. Preserve dry-runs as well. The
+gallery-cache directory contains replaceable display derivatives, not originals.

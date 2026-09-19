@@ -19,3 +19,4 @@ jobs:
         with:
           node-version: 22
       - run: node tests/spacebar.test.cjs
+      - run: node tests/display.test.cjs

@@ -7,6 +7,7 @@ let actionError = '';
 let layoutLoaded = false;
 let refreshing = false;
 let previewLoaded = false;
+let extrasLoaded = false;
 async function boundedFetch(url, options = {}, timeoutMs = 5000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -45,6 +46,15 @@ async function refresh() {
       $('preview-save').disabled = busy || state.phase !== 'watching' || Boolean(state.current);
       $('preview-measured').textContent = `Saved target: ${state.preview_fps} FPS · Actual A: ${state.previews.A.recent_fps} FPS · B: ${state.previews.B.recent_fps} FPS`;
     }
+    if (!extrasLoaded) {
+      state.calibration.strip_offsets_px.forEach((value,i)=>{ $('calibration-'+(i+1)).value=value; });
+      $('countdown-seconds').value=state.countdown_seconds;
+      $('slideshow-seconds').value=state.slideshow.seconds;
+      $('slideshow-source').value=state.slideshow.source;
+      $('slideshow-shuffle').checked=state.slideshow.shuffle_all;
+      extrasLoaded=true;
+    }
+    $('dry-run').disabled=busy || state.phase!=='watching' || Boolean(state.current) || !state.last;
     $('uptime').textContent = `Running for ${Math.floor(state.uptime_seconds / 3600)}h ${Math.floor(state.uptime_seconds % 3600 / 60)}m · No application session expiry`;
     const [title, detail] = descriptions[state.phase] || ['Paused', 'Check the appliance.'];
     $('phase').textContent = title;
@@ -104,7 +114,7 @@ async function post(url, body, json = false) {
     const response = await boundedFetch(url, {method:'POST', headers:{'X-Stripshot-Token':token, ...(json ? {'Content-Type':'application/json'} : {})}, body}, 135000);
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Action failed');
-    return true;
+    return result;
   } catch (error) { actionError = error.message; return false; }
   finally {
     busy = false;
@@ -170,4 +180,32 @@ if ($('preview-form')) $('preview-form').onsubmit = async event => {
   $('preview-message').textContent = '';
   const ok = await post('/api/preview-settings', JSON.stringify({fps:Number($('preview-fps').value)}), true);
   $('preview-message').textContent = ok ? 'Saved. Both previews now use this target; retained after restart.' : 'Not saved. ' + actionError;
+};
+
+$('calibration-default').onclick=()=>{[20,15,6,-2].forEach((v,i)=>{$('calibration-'+(i+1)).value=v;});$('calibration-message').textContent='Accepted offsets loaded. Save to apply.';};
+$('calibration-form').onsubmit=async event=>{
+  event.preventDefault();
+  const ok=await post('/api/calibration',JSON.stringify({strip_offsets_px:[1,2,3,4].map(i=>Number($('calibration-'+i).value))}),true);
+  $('calibration-message').textContent=ok?'Saved for future sheets and dry runs. Active batch unchanged.':'Not saved. '+actionError;
+};
+$('session-form').onsubmit=async event=>{
+  event.preventDefault();
+  const ok=await post('/api/session-settings',JSON.stringify({countdown_seconds:Number($('countdown-seconds').value)}),true);
+  $('session-message').textContent=ok?'Saved for future sessions. Active batch unchanged.':'Not saved. '+actionError;
+};
+$('slideshow-form').onsubmit=async event=>{
+  event.preventDefault();
+  const ok=await post('/api/slideshow-settings',JSON.stringify({seconds:Number($('slideshow-seconds').value),shuffle_all:$('slideshow-shuffle').checked,source:$('slideshow-source').value}),true);
+  $('slideshow-message').textContent=ok?'Saved. Open slideshows update within five seconds.':'Not saved. '+actionError;
+};
+$('dry-run').onclick=async()=>{
+  const preview=window.open('about:blank','stripshot-dry-run','width=1100,height=850');
+  if(preview) preview.opener=null;
+  $('dry-run-message').textContent='Rendering saved photos — no capture or printing…';
+  const result=await post('/api/dry-run');
+  if(result && result.url) {
+    $('dry-run-link').href=result.url; $('dry-run-link').hidden=false;
+    if(preview) preview.location.href=result.url;
+    $('dry-run-message').textContent='Finished. No paper used.';
+  } else { if(preview) preview.close(); $('dry-run-message').textContent='Preview not created. '+actionError; }
 };
