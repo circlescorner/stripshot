@@ -27,16 +27,13 @@ document.getElementById('pause').onclick=()=>{paused=!paused; document.getElemen
 document.getElementById('fullscreen').onclick=()=>document.documentElement.requestFullscreen().catch(()=>{});
 document.addEventListener('keydown',event=>{if(event.altKey||event.ctrlKey||event.metaKey||event.target.closest('input,select,textarea')) return; if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();advance(event.key==='ArrowLeft'?-1:1);}});
 async function refresh() {
-  const controller=new AbortController(), timeout=setTimeout(()=>controller.abort(),5000);
   try {
-    const response=await fetch('/api/slideshow',{cache:'no-store',signal:controller.signal});
-    if(!response.ok) throw new Error('Slideshow unavailable');
-    const data=await response.json(), previousSeconds=seconds;
+    const data=await window.StripshotRequestJson('/api/slideshow',{cache:'no-store'}), previousSeconds=seconds;
     seconds=data.settings.seconds; catalog=new Map(data.photos.map(p=>[p.id,p]));
     order.update(data.photos.map(p=>p.id),data.settings.shuffle_all);
     if(showing!==order.current) await show();
     else { document.getElementById('slide-count').textContent=order.ids.length ? `${order.index+1} / ${order.ids.length}` : ''; if(seconds!==previousSeconds) schedule(); }
   } catch { if(!showing) message.textContent='Slideshow disconnected — reconnecting…'; }
-  finally {clearTimeout(timeout);setTimeout(refresh,5000);}
+  finally {setTimeout(refresh,5000);}
 }
 refresh();

@@ -253,4 +253,8 @@ paper-free rerender button, visible strip calibration, configurable slideshow wi
 arrow keys/shuffle, and session-aware monitor messages with a real photo countdown.
 
 The operator page shows the saved-photo folder and a read-only photo/sheet browser.
-[Calibration and live view](docs/CALIBRATION-AND-LIVE-VIEW.md) describes caliper controls, edge-filled corrections and automatic display recovery.
+[Calibration and live view](docs/CALIBRATION-AND-LIVE-VIEW.md) describes caliper controls, saved translation offsets and automatic display recovery.
+
+The operator Output panel displays the DS40’s last reported remaining print count,
+media, percentage and report time. Supply reads require `cups-ipp-utils` and never
+submit a print job. See [printer status details](docs/CALIBRATION-AND-LIVE-VIEW.md#ds40-remaining-prints).

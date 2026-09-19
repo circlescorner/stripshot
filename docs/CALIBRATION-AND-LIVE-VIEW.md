@@ -2,12 +2,35 @@
 
 The operator page shows the current saved-photo path and a link to browse completed
 photos and finished sheets. Click any thumbnail to view its full-resolution file.
-The current location is `/tmp/stripshot-two-cameras-hgc2l_yp/batches/`, with a
+The previously used location was `/tmp/stripshot-two-cameras-hgc2l_yp/batches/`, with a
 `batch-…` folder per session containing `A01.jpg`–`A08.jpg`, `B01.jpg`–`B08.jpg`,
-`sheet.png`, frozen artwork and the manifest. Unfinished sessions stay in that folder.
+`sheet.png`, frozen artwork and the manifest. Unfinished sessions stay in their session folder. After the reported power-off on
+September 19, the old `/tmp/stripshot-two-cameras-hgc2l_yp` directory was absent.
+Preserved hardware manifests and reports remain in the existing deliverables;
+no restoration, fresh live data directory, or camera-owner restart was attempted.
 
 Storage migration, destination controls, additional copies and retention machinery
 have been removed. Existing photo data and recovery evidence are unchanged.
+
+## DS40 remaining prints
+
+The operator's Output panel shows prints remaining on the roll, media type,
+percentage remaining and the time of the last driver report. It polls CUPS every
+15 seconds without blocking the dashboard, including when printing is disabled.
+The count comes from Gutenprint's `marker-message`; `marker-levels` is a percentage
+and is never converted into a guessed print count. With 6×8 media, one count is
+one 6×8 sheet (four finished strips), not one individual strip.
+
+This is the last count reported to CUPS, typically updated by normal printing.
+A roll change may not appear until the driver next reports supplies. The panel
+shows the report time rather than claiming a fresh hardware reading. Missing
+counts, failed reads and disconnections show unavailable, not zero.
+
+The only supply operation is IPP Get-Printer-Attributes, using `ipptool` from
+Ubuntu's `cups-ipp-utils`. It does not submit a job or claim the printer USB device.
+A read-only check on September 19 returned 150 remaining, 75%, on 6×8 (A5) media.
+See [CUPS supply attributes](https://openprinting.github.io/cups/libcups/spec-ipp.html)
+and the [Gutenprint maintainer's DS40 reporting explanation](https://sourceforge.net/p/gimp-print/discussion/4359/thread/e678f457ba/).
 
 ## Calibration
 
@@ -50,6 +73,17 @@ endpoints; it never requests camera reconnect, worker replacement or capture.
 Wedding branding, session countdown/blackout text and guest wording are preserved.
 The four Waitress workers, shared asynchronous printer status and preview camera-file
 buffer lifetime are unchanged. The historical generic 404 cause remains unknown.
+
+The operator dashboard, printer status, calibration status, guest kiosk and slideshow
+catalog now bound both HTTP headers and JSON body decoding. A timed-out read resumes
+normal polling; no action request is automatically repeated. Older kiosk status
+responses cannot overwrite a newer response or a newly started session. An uncertain
+capture remains blocked until server status supplies evidence of that session.
+
+Caliper proposals are cleared when measurements or the selected target change.
+Late measurement/status responses cannot restore an obsolete proposal. Operator
+forms reject concurrent submissions, and completing another action preserves disabled
+controls instead of enabling every button.
 
 ## Border preservation
 

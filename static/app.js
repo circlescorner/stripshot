@@ -8,12 +8,7 @@ let layoutLoaded = false;
 let refreshing = false;
 let previewLoaded = false;
 let extrasLoaded = false;
-async function boundedFetch(url, options = {}, timeoutMs = 5000) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try { return await fetch(url, {...options, signal:controller.signal}); }
-  finally { clearTimeout(timeout); }
-}
+const requestJson = window.StripshotRequestJson;
 const descriptions = {
   reconnecting: ['Reconnecting cameras', 'Verifying camera identities and restoring previews. No shutter is issued.'],
   capturing: ['Taking your photos', 'Eight paired rounds, with previews between shots.'],
@@ -30,9 +25,7 @@ async function refresh() {
   if (refreshing) return;
   refreshing = true;
   try {
-    const response = await boundedFetch('/api/status');
-    if (!response.ok) throw new Error('Dashboard status is unavailable');
-    const state = await response.json();
+    const state = await requestJson('/api/status');
     if ($('photo-folder')) $('photo-folder').textContent = 'Files are stored in: ' + state.data_dir + '/batches/';
     if (!layoutLoaded && state.layout) {
       fillLayout(state.layout);
@@ -110,17 +103,18 @@ async function refresh() {
   } finally { refreshing = false; }
 }
 async function post(url, body, json = false) {
+  if (busy) return false;
   busy = true; actionError = '';
-  document.querySelectorAll('button').forEach(button => button.disabled = true);
+  const buttons = Array.from(document.querySelectorAll('button'), button => [button, button.disabled]);
+  buttons.forEach(([button]) => button.disabled = true);
   try {
-    const response = await boundedFetch(url, {method:'POST', headers:{'X-Stripshot-Token':token, ...(json ? {'Content-Type':'application/json'} : {})}, body}, 135000);
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Action failed');
+    const result = await requestJson(url, {method:'POST', headers:{'X-Stripshot-Token':token, ...(json ? {'Content-Type':'application/json'} : {})}, body}, 135000);
     return result;
   } catch (error) { actionError = error.message; return false; }
   finally {
     busy = false;
-    document.querySelectorAll('button').forEach(button => button.disabled = false);
+    buttons.forEach(([button, disabled]) => button.disabled = disabled);
+    if (typeof refreshCalibrationButtons === 'function') refreshCalibrationButtons();
     await refresh();
   }
 }
@@ -139,8 +133,19 @@ document.querySelectorAll('input[data-strip]').forEach(input => input.onchange =
   input.value = '';
 });
 async function printerStatus() {
-  try { const response = await boundedFetch('/api/printer'); const data = await response.json(); $('printer-status').textContent = data.status; }
-  catch { $('printer-status').textContent = 'Printer status unavailable'; }
+  try {
+    const data = await requestJson('/api/printer');
+    $('printer-status').textContent = data.status;
+    $('printer-remaining').textContent = 'Prints remaining on roll: ' + (Number.isInteger(data.prints_remaining) ? data.prints_remaining : 'unavailable');
+    $('printer-media').textContent = [data.media, Number.isInteger(data.percent) ? data.percent + '% remaining' : ''].filter(Boolean).join(' · ');
+    const reported = data.reported_at ? 'Last driver report: ' + new Date(data.reported_at * 1000).toLocaleString() + '. ' : '';
+    $('printer-reported').textContent = reported + (data.message || '');
+  } catch {
+    $('printer-status').textContent = 'Printer status unavailable';
+    $('printer-remaining').textContent = 'Prints remaining on roll: unavailable';
+    $('printer-media').textContent = '';
+    $('printer-reported').textContent = 'Reconnecting to printer status…';
+  }
 }
 async function statusLoop() { await refresh(); setTimeout(statusLoop, 1000); }
 async function printerLoop() { await printerStatus(); setTimeout(printerLoop, 15000); }

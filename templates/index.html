@@ -5,6 +5,7 @@
   <meta name="stripshot-token" content="{{ token }}">
   <title>Stripshot · Operator</title>
   <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/request-json.js"></script>
   <script defer src="/static/spacebar.js"></script>
   <script defer src="/static/app.js"></script>
 <script defer src="/static/operator-calibration.js"></script>
@@ -106,7 +107,7 @@
     <div class="strip-grid">{% for i in range(1, 5) %}<article class="strip-card"><div class="strip-art"><img src="/overlays/{{ i }}.png" alt="Strip {{ i }} overlay preview" id="overlay-{{ i }}"></div><div class="strip-meta"><h3>Strip 0{{ i }}</h3><span id="saved-order-{{ i }}">{{ 'A' ~ (i*2-1) }} · {{ 'B' ~ (i*2-1) }} · {{ 'A' ~ (i*2) }} · {{ 'B' ~ (i*2) }}</span></div><label class="upload" for="file-{{ i }}">Change PNG<input id="file-{{ i }}" type="file" accept="image/png" data-strip="{{ i }}"></label></article>{% endfor %}</div>
     <p class="hint">Changes apply to the next batch. Each batch keeps its own copy of the artwork.</p>
   </section>
-  <section class="bottom-grid"><article class="panel last"><p class="eyebrow">THE LAST KEEPSAKE</p><h2 id="last-title">Your first sheet is next.</h2><p id="last-detail" class="hint">Completed sheets appear here.</p><img id="last-preview" hidden alt="Last rendered four-strip sheet"></article><article class="panel print"><p class="eyebrow">OUTPUT</p><h2>One sheet.<br>Four memories.</h2><div class="print-spec"><span>6 × 8 INCH SHEET</span><span>4 × 2 × 6 STRIPS</span><span>300 DPI</span></div><p id="printer-status" class="hint">Checking print configuration…</p><p class="hint">“Submitted” means CUPS accepted the job. Check the printer for physical completion.</p></article></section>
+  <section class="bottom-grid"><article class="panel last"><p class="eyebrow">THE LAST KEEPSAKE</p><h2 id="last-title">Your first sheet is next.</h2><p id="last-detail" class="hint">Completed sheets appear here.</p><img id="last-preview" hidden alt="Last rendered four-strip sheet"></article><article class="panel print"><p class="eyebrow">OUTPUT</p><h2>One sheet.<br>Four memories.</h2><div class="print-spec"><span>6 × 8 INCH SHEET</span><span>4 × 2 × 6 STRIPS</span><span>300 DPI</span></div><p id="printer-status" class="hint">Checking print configuration…</p><p id="printer-remaining" role="status"><strong>Prints remaining on roll: checking…</strong></p><p id="printer-media" class="hint"></p><p id="printer-reported" class="hint"></p><p class="hint">“Submitted” means CUPS accepted the job. Check the printer for physical completion.</p></article></section>
   <footer><span>STRIPSHOT / MADE TO KEEP</span><span>All camera files are kept.</span></footer>
 </main>
 </body></html>

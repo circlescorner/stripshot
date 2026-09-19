@@ -105,7 +105,7 @@ def create_app(engine):
 
     @app.get('/api/printer')
     def printer():
-        return jsonify(status=engine.printer.cached_status())
+        return jsonify(engine.printer.cached_details())
 
     @app.post('/api/<action>')
     def action(action):
