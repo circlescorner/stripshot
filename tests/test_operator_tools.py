@@ -6,7 +6,7 @@ import os
 import re
 import unittest
 from unittest.mock import patch
-from PIL import Image, ImageDraw
+from PIL import Image
 from app import create_app
 from qualification import DS40_OPTIONS, DS40_OFFSETS, validate_software_printing
 from storage import save_json
@@ -35,12 +35,12 @@ class OperatorToolsTests(unittest.TestCase):
         e.action('layout',{**e.layout,'photo_scale':90})
         e.action('calibration',{'strip_offsets_px':[10,11,12,13]})
         overlay=e.root/'overlays/strip1.png';overlay.parent.mkdir()
-        image=Image.new('RGBA',(600,1800),(0,0,0,0));ImageDraw.Draw(image).rectangle((296,896,303,903),fill=(0,0,255,255));image.save(overlay)
+        image=Image.new('RGBA',(600,1800),(0,0,0,0));image.putpixel((50,50),(0,0,255,255));image.save(overlay)
         with patch('printer.Printer.submit',side_effect=AssertionError('Never print')):
             result=e.action('dry_run')
         output=e.root/'dry-runs'/result['id']
         with Image.open(output/'sheet.png') as sheet:
-            self.assertEqual(sheet.size,(2400,1800));self.assertEqual(sheet.getpixel((310,900)),(0,0,255))
+            self.assertEqual(sheet.size,(2400,1800));self.assertEqual(sheet.getpixel((60,50)),(0,0,255))
         manifest=json.loads((output/'manifest.json').read_text())
         self.assertEqual(manifest['layout']['photo_scale'],90)
         self.assertEqual(manifest['strip_offsets_px'],[10,11,12,13])

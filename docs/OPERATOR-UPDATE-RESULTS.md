@@ -1,26 +1,21 @@
-# Saved-photo access and calibration fitting
+# Saved-photo access and border rollback
 
-The storage-management system has been removed. The operator page now shows the
-saved-photo folder and one link to browse completed originals and finished sheets.
-No migration, destination, backup-job or retention system remains in the application.
+The operator page shows the saved-photo folder and a read-only browser for completed
+originals and finished sheets. The added migration, backup and retention system was
+removed. Existing data and recovery evidence remain in place.
 
-Calibration now scales each axis only as needed and crops to fit, preserving the
-saved center shifts without added color or blank padding. Width and height scale
-independently to avoid unnecessary vertical cropping. Larger than 3% enlargement
-was explicitly selected to keep the saved shifts. Existing photos/artwork, stored
-calibration settings and already-frozen batches remain unchanged.
+The proposed calibration enlargement/cropping was rejected and removed. Rendering
+again translates the original composite with the saved calibration; no new scaling
+or edge-color extension is applied. The white-edge issue remains unresolved.
+Saved calibration and frozen batches remain unchanged. An unshifted preview was
+rendered separately from saved originals at the user's request; it changes no settings.
 
-Verification:
-- Full Python suite: 110 tests passed in 68.525 seconds.
-- Final fitting/calibration checks: 9 tests passed in 5.940 seconds, including the
-  added horizontal-fit regression that protects bottom artwork from vertical cropping.
-- All four Node suites passed.
-- Operator page and read-only photo browser checked in an isolated render-only demo;
-  no JavaScript errors. The port 8096 demo was stopped and confirmed unreachable.
-- Separate preview rendered from existing local originals and current artwork using
-  X=[26,16,6,-2], Y=2. Width increases are [8.67%,5.33%,2.00%,0.67%], height 0.22%.
-  The year remains visible. Source and overlay SHA-256 hashes stayed unchanged.
+Verification: 109 Python tests passed in 68.045 seconds. Four Node regression suites
+passed. The simple photo browser and operator page were checked in an isolated,
+render-only demo; the demo was stopped. Preview source, artwork, manifest and operator
+settings hashes were unchanged.
 
 No physical capture or print, live-owner restart, data relocation or merge occurred.
-This is a rendering verification, not a new physical printer qualification.
-A controlled application restart and page reload load the updated package.
+This is software verification, not new physical printer qualification. Native abrupt
+failure, endurance, custom calibration and OS kiosk lockdown remain unqualified.
+A controlled application restart and page reload are needed to load the updated package.

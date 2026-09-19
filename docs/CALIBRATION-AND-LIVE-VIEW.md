@@ -51,27 +51,17 @@ Wedding branding, session countdown/blackout text and guest wording are preserve
 The four Waitress workers, shared asynchronous printer status and preview camera-file
 buffer lifetime are unchanged. The historical generic 404 cause remains unknown.
 
-## Fit calibration to the strip
+## Border preservation
 
-New finished sheets enlarge each axis only as much as its saved correction needs,
-then crop within that strip. Width is 600 + 2 × |X offset| pixels; height is
-1800 + 2 × |Y offset| pixels. This preserves the center translation and covers
-all output pixels with scaled source content, without padding or extended colors.
-Scaling each axis independently avoids unnecessary top/bottom cropping when only
-horizontal correction is large, but changes the design's proportions slightly.
-
-The operator page shows the resulting percentages. Current saved offsets
-[26,16,6,-2] and Y=2 need width increases [8.67%,5.33%,2.00%,0.67%] and a 0.22%
-height increase. More than 3% was explicitly selected to preserve these shifts.
-The saved offsets and source artwork are unchanged. Existing completed sheets are
-not overwritten; already-frozen batches retain their old rendering behavior.
-Diagnostic calibration targets remain unscaled so the 20 mm gauge stays meaningful.
+The proposed enlargement/cropping was rejected and removed. No automatic scaling
+or edge-color extension is applied. Rendering uses the previous saved calibration
+behavior and does not alter source artwork. Saved centering settings are unchanged.
+The white-edge issue remains unresolved; no replacement border treatment is enabled.
 
 ## Deployment and verification
 
 A controlled application restart and one page reload are required to load changed
 Python, templates and JavaScript. No live owner was restarted during development.
 No physical capture or print was used to verify this update. Accepted hardware
-results and all earlier evidence are preserved. Border coverage was checked in the
-rendered pixels; it is not a new physical printer qualification. Native abrupt
+results and all earlier evidence are preserved. No new physical printer qualification is claimed. Native abrupt
 failure, endurance, custom calibration and full OS lockdown remain unqualified.

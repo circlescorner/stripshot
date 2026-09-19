@@ -27,7 +27,6 @@ LOG = logging.getLogger(__name__)
 class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
     def __init__(self, config, adapters):
         self.config = config
-        config['printer']['calibration_fit'] = True
         self.software = config['camera_mode'] == 'software'
         if self.software:
             validate_software_printing(config['printer'], config['demo'])
@@ -254,8 +253,7 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
         sheet = directory / 'sheet.png'
         render_sheet(photos, overlays, batch['layout'], sheet,
                      strip_offsets_px=batch['printer'].get('strip_offsets_px', [0, 0, 0, 0]),
-                     sheet_offset_y_px=batch['printer'].get('sheet_offset_y_px',0),
-                     fit_calibration=batch['printer'].get('calibration_fit',False))
+                     sheet_offset_y_px=batch['printer'].get('sheet_offset_y_px',0))
         with self.lock:
             if any(w.failure for w in self.workers.values()):
                 raise RuntimeError('Camera failed during preparation; restart after checking connections')

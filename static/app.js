@@ -56,8 +56,6 @@ async function refresh() {
       $('slideshow-shuffle').checked=state.slideshow.shuffle_all;
       extrasLoaded=true;
     }
-    const fit = state.calibration.strip_offsets_px.map(x => (200*Math.abs(x)/600).toFixed(2)+'%');
-    if ($('calibration-fit')) $('calibration-fit').textContent = 'Fit enlargement: width ' + fit.join(' / ') + ' per strip; height ' + (200*Math.abs(state.calibration.sheet_offset_y_px ?? 0)/1800).toFixed(2) + '%. Width and height scale independently; outer artwork is cropped.';
     $('dry-run').disabled=busy || state.phase!=='watching' || Boolean(state.current) || !state.last;
     $('uptime').textContent = `Running for ${Math.floor(state.uptime_seconds / 3600)}h ${Math.floor(state.uptime_seconds % 3600 / 60)}m · No application session expiry`;
     const [title, detail] = descriptions[state.phase] || ['Paused', 'Check the appliance.'];

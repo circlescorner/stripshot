@@ -69,9 +69,9 @@
     <h2>Calibration — strip centering</h2>
     <form id="calibration-form"><div class="layout-fields">{% for i in range(1,5) %}
       <label>Strip {{ i }} offset (pixels)<input id="calibration-{{ i }}" type="number" min="-60" max="60" step="1" required></label>{% endfor %}</div>
-      <p class="hint">Positive moves right; negative moves left. Each strip’s width and height are enlarged only as needed to cover its boundary after centering, then cropped. Photos and artwork stay together; no padding is added. Accepted offsets: +20, +15, +6, −2 pixels. Custom offsets apply to future printed sheets and dry runs; they have not been physically qualified.</p>
+      <p class="hint">Positive moves right; negative moves left. Each complete photo-and-overlay strip stays clipped within its boundary. Accepted offsets: +20, +15, +6, −2 pixels. Custom offsets apply to future printed sheets and dry runs; they have not been physically qualified.</p>
       <button type="submit">Save calibration for future sheets</button><button type="button" id="calibration-default">Load accepted offsets</button>
-      <p id="calibration-fit" class="hint"></p><p id="calibration-message" class="hint" role="status"></p>
+      <p id="calibration-message" class="hint" role="status"></p>
     </form>
     <label>Whole-sheet vertical offset (pixels)<input id="calibration-y" type="number" min="-60" max="60" step="1" value="0" form="calibration-form"></label>
     <h3>Calibration sheet &amp; caliper measurements</h3>

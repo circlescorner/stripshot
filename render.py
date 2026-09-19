@@ -71,19 +71,7 @@ def normalize_overlay(content):
         return buf.getvalue()
 
 
-def fit_calibrated_strip(strip, dx, dy):
-    """Fit each axis without padding, keeping the saved center translation."""
-    width, height = strip.size
-    # Horizontal correction must not unnecessarily crop the top/bottom artwork.
-    scaled_width = width + 2 * abs(dx)
-    scaled_height = height + 2 * abs(dy)
-    enlarged = strip.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
-    left = (scaled_width - width) // 2 - dx
-    top = (scaled_height - height) // 2 - dy
-    return enlarged.crop((left, top, left + width, top + height))
-
-
-def render_sheet(photos, overlays, layout, output, strip_offsets_px=None, sheet_offset_y_px=0, fit_calibration=True):
+def render_sheet(photos, overlays, layout, output, strip_offsets_px=None, sheet_offset_y_px=0):
     validate_layout(layout)
     offsets = [0, 0, 0, 0] if strip_offsets_px is None else strip_offsets_px
     validate_strip_offsets(offsets)
@@ -118,12 +106,8 @@ def render_sheet(photos, overlays, layout, output, strip_offsets_px=None, sheet_
                 strip = Image.alpha_composite(strip, overlay.convert('RGBA'))
         # Translate photos and artwork together, clipped within this strip.
         # Never let calibration spill content into its neighbor.
-        if fit_calibration:
-            calibrated = fit_calibrated_strip(strip.convert('RGB'), offsets[index], sheet_offset_y_px)
-        else:
-            # Preserve the rendering of batches frozen before calibration fitting.
-            calibrated = Image.new('RGB', STRIP, 'white')
-            calibrated.paste(strip.convert('RGB'), (offsets[index], sheet_offset_y_px))
+        calibrated = Image.new('RGB', STRIP, 'white')
+        calibrated.paste(strip.convert('RGB'), (offsets[index], sheet_offset_y_px))
         sheet.paste(calibrated, (index * 600, 0))
     buf = io.BytesIO()
     sheet.save(buf, format='PNG', dpi=(300, 300))
