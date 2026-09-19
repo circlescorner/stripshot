@@ -1,0 +1,11 @@
+# Read CUPS' cached driver report only; this never creates a print job.
+{
+    NAME "Stripshot printer supplies"
+    OPERATION Get-Printer-Attributes
+    GROUP operation-attributes-tag
+    ATTR charset attributes-charset utf-8
+    ATTR language attributes-natural-language en
+    ATTR uri printer-uri $uri
+    ATTR keyword requested-attributes marker-message,marker-levels,marker-names,marker-change-time,printer-up-time,printer-state,printer-state-message
+    STATUS successful-ok
+}

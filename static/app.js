@@ -1,0 +1,306 @@
+'use strict';
+const $ = id => document.getElementById(id);
+const token = document.querySelector('meta[name="stripshot-token"]').content;
+let busy = false;
+let printingEnabled = null;
+let lastPreview = '';
+let actionError = '';
+let layoutLoaded = false;
+let refreshing = false;
+let previewLoaded = false;
+let extrasLoaded = false;
+let overlaySettingsLoaded = false;
+const requestJson = window.StripshotRequestJson;
+const descriptions = {
+  stopping: ['Stopping Stripshot', 'Closing the booth and releasing the cameras…'],
+  reconnecting: ['Reconnecting cameras', 'Verifying camera identities and restoring previews. No shutter is issued.'],
+  capturing: ['Taking your photos', 'Eight paired rounds, with previews between shots.'],
+  capture_held: ['Capture paused', 'Review the saved shutter records before resuming or abandoning.'],
+  starting: ['Starting up', 'Reading the SD-card baselines. Wait before taking photos.'],
+  watching: ['Ready for the moment', 'Watching for eight new JPEGs from each camera.'],
+  downloading: ['Collecting the originals', 'The full 16-photo batch is saved. Downloading now.'],
+  rendering: ['Making your strips', 'Arranging photos and applying your four overlays.'],
+  submitting: ['Sending one sheet', 'Recording one print attempt with the spooler.'],
+  print_uncertain: ['Check the printer', 'This batch will not print again automatically.'],
+  error: ['Needs your attention', 'Collection or preparation is paused.'],
+};
+async function refresh() {
+  if (refreshing) return;
+  refreshing = true;
+  try {
+    const state = await requestJson('/api/status');
+    if (typeof updatePrinterQualityState === 'function') updatePrinterQualityState(state);
+    if (state.overlay_settings && typeof updateEdgeBaseline === 'function') updateEdgeBaseline(state.overlay_settings);
+    if (state.overlay_settings && typeof updateScanAlignmentSettings === 'function') updateScanAlignmentSettings(state.overlay_settings);
+    if (typeof updateApplicationControls === 'function') updateApplicationControls(state);
+    if ($('printing-toggle')) {
+      printingEnabled = state.printing_enabled;
+      $('printing-toggle').disabled = busy || !state.printing_change_available;
+      $('printing-toggle').textContent = printingEnabled ? 'Use dry run' : 'Enable live printing';
+      $('printing-mode').textContent = state.demo ? 'Demo — printing unavailable' : printingEnabled ? 'Live printing enabled' : 'Dry run — no printing';
+    }
+    if ($('photo-folder')) $('photo-folder').textContent = 'Files are stored in: ' + state.data_dir + '/batches/';
+    if (!overlaySettingsLoaded && state.overlay_settings) {
+      state.overlay_settings.forEach((settings, i) => {
+        $('overlay-scale-' + (i + 1)).value = settings.scale_x_percent;
+        $('overlay-offset-' + (i + 1)).value = settings.offset_x_px;
+        $('overlay-scale-y-' + (i + 1)).value = settings.scale_y_percent ?? 100;
+        $('overlay-offset-y-' + (i + 1)).value = settings.offset_y_px ?? 0;
+        previewOverlay(i + 1);
+      });
+      overlaySettingsLoaded = true;
+    }
+    $('overlay-save').disabled = busy || !overlaySettingsLoaded;
+    if (!layoutLoaded && state.layout) {
+      fillLayout(state.layout);
+      layoutLoaded = true;
+    }
+    if (state.layout) {
+      const order = state.layout.photo_order ?? Array.from({length:4}, (_,i) => [`A${i*2+1}`,`B${i*2+1}`,`A${i*2+2}`,`B${i*2+2}`]);
+      order.forEach((strip,i) => { $('saved-order-'+(i+1)).textContent = strip.join(' · '); });
+    }
+    if ($('preview-form')) {
+      if (!previewLoaded) { $('preview-fps').value = state.preview_fps; previewLoaded = true; }
+      $('preview-save').disabled = busy || state.phase !== 'watching' || Boolean(state.current);
+      $('preview-measured').textContent = `Saved target: ${state.preview_fps} FPS · Measured camera A: ${state.previews.A.recent_fps} FPS · B: ${state.previews.B.recent_fps} FPS`;
+    }
+    if (!extrasLoaded) {
+      $('countdown-seconds').value=state.countdown_seconds;
+      $('slideshow-seconds').value=state.slideshow.seconds;
+      $('slideshow-source').value=state.slideshow.source;
+      $('slideshow-shuffle').checked=state.slideshow.shuffle_all;
+      extrasLoaded=true;
+    }
+    $('dry-run').disabled=busy || state.phase!=='watching' || Boolean(state.current) || !state.last;
+    $('uptime').textContent = `Running for ${Math.floor(state.uptime_seconds / 3600)}h ${Math.floor(state.uptime_seconds % 3600 / 60)}m · No application session expiry`;
+    const [title, detail] = descriptions[state.phase] || ['Paused', 'Check the appliance.'];
+    $('phase').textContent = title;
+    $('phase-detail').textContent = state.capture_mode === 'software' && state.phase === 'watching' ? 'Ready to take eight photos on each camera.' : state.capture_mode === 'software' && state.phase === 'starting' ? 'Opening camera sessions and previews.' : detail;
+    $('mode').textContent = state.demo ? 'DEMO / NO PRINTING' : state.printing_enabled ? 'LIVE / PRINT ENABLED' : 'LIVE / DRY RUN';
+    for (const c of ['A', 'B']) {
+      $('camera-' + c).textContent = state.cameras[c] + (state.previews?.[c]?.recent_fps ? ` · ${state.previews[c].recent_fps} preview FPS` : '');
+      $('count-' + c).replaceChildren(document.createTextNode(state.counts[c] + ' '));
+      const small = document.createElement('small'); small.textContent = '/ 8';
+      $('count-' + c).append(small);
+      $('progress-' + c).value = Math.min(state.counts[c], 8);
+    }
+    const remaining = Math.max(0, 8-state.counts.A) + Math.max(0, 8-state.counts.B);
+    $('waiting').textContent = state.capture_mode === 'software' ? (state.current ? `${state.counts.A + state.counts.B} exact photos downloaded for this batch.` : 'Ready for a new 16-photo batch.') : state.current ? 'Processing 16 photos · new arrivals wait for the next batch.' : `Waiting for ${remaining} photographs.`;
+    if ($('capture')) $('capture').disabled = busy || state.phase !== 'watching' || Boolean(state.current);
+    $('reconnect-cameras').hidden = !state.reconnect_available;
+    $('reconnect-cameras').disabled = busy || state.capture_busy;
+    $('resume-capture').hidden = state.phase !== 'capture_held';
+    $('abandon-capture').hidden = state.phase !== 'capture_held';
+    $('resume-capture').disabled = busy || state.capture_busy;
+    $('abandon-capture').disabled = busy || state.capture_busy;
+    $('capture-records').hidden = state.phase !== 'capture_held';
+    if (state.current?.shots) {
+      $('capture-records').textContent = ['A', 'B'].map(c => c + ': ' + state.current.shots[c].map((s, i) =>
+        `${i + 1} ${s.downloaded_at ? 'downloaded' : s.identity ? 'identified' : s.intent_at ? 'uncertain — no replacement' : 'not issued'}`
+      ).join(', ')).join(' / ');
+    }
+    $('reset').disabled = busy || state.phase !== 'watching' || Boolean(state.current);
+    if ($('demo')) $('demo').disabled = busy || state.phase !== 'watching' || Boolean(state.current);
+    $('retry').hidden = !(state.phase === 'error' && state.current?.stage === 'preparing');
+    $('acknowledge').hidden = state.phase !== 'print_uncertain';
+    $('notice').hidden = !(state.error || actionError);
+    $('notice').textContent = actionError || state.error;
+    if (state.last) {
+      const labels = {dry_run:'Your sheet is ready.', submitted:'One sheet submitted.', acknowledged_without_retry:'Print acknowledged.'};
+      $('last-title').textContent = labels[state.last.status] || 'Batch complete.';
+      $('last-detail').textContent = `16 photos · ${state.last.job_id || (state.last.status === 'dry_run' ? 'Dry run — no paper used' : 'No automatic reprint')}`;
+      if (!state.last.preview_available) { $('last-preview').hidden = true; if ($('last-preview-link')) $('last-preview-link').hidden = true; lastPreview = ''; }
+      if (state.last.preview_available && lastPreview !== state.last.id) {
+        lastPreview = state.last.id;
+        const link = $('last-preview-link');
+        if (link) { link.href = '/photos/' + encodeURIComponent(lastPreview) + '/sheet.png'; link.hidden = false; }
+        $('last-preview').src = `/batches/${encodeURIComponent(lastPreview)}/preview.jpg`;
+        $('last-preview').hidden = false;
+      }
+    }
+  } catch (error) {
+    printingEnabled = null;
+    if (typeof updatePrinterQualityState === 'function') updatePrinterQualityState({phase:'disconnected'});
+    if ($('printing-toggle')) $('printing-toggle').disabled = true;
+    $('phase').textContent = 'Dashboard disconnected';
+    $('phase-detail').textContent = 'Reconnecting… Check the running application if this persists.';
+    $('reset').disabled = true;
+    if ($('capture')) $('capture').disabled = true;
+    if ($('demo')) $('demo').disabled = true;
+    if (typeof applicationDisconnected === 'function') applicationDisconnected();
+  } finally { refreshing = false; }
+}
+async function post(url, body, json = false) {
+  if (busy) return false;
+  busy = true; actionError = '';
+  const buttons = Array.from(document.querySelectorAll('button'), button => [button, button.disabled]);
+  buttons.forEach(([button]) => button.disabled = true);
+  try {
+    const result = await requestJson(url, {method:'POST', headers:{'X-Stripshot-Token':token, ...(json ? {'Content-Type':'application/json'} : {})}, body}, 135000);
+    return result;
+  } catch (error) { actionError = error.message; return false; }
+  finally {
+    busy = false;
+    buttons.forEach(([button, disabled]) => button.disabled = disabled);
+    if (typeof refreshScanButtons === 'function') refreshScanButtons();
+    await refresh();
+  }
+}
+if ($('printing-toggle')) $('printing-toggle').onclick = async () => {
+  if (busy || $('printing-toggle').disabled || printingEnabled === null) return;
+  const enabled = !printingEnabled;
+  $('printing-message').textContent = 'Changing printing mode…';
+  const result = await post('/api/printing-settings', JSON.stringify({enabled}), true);
+  $('printing-message').textContent = result
+    ? (result.printing_enabled ? 'Live printing enabled for new sessions.' : 'Dry run enabled. New sessions will not print.')
+    : 'Change not confirmed. Check the current mode before starting a session. ' + actionError;
+  if (result) await printerStatus();
+};
+$('reset').onclick = () => { if (confirm('Ignore the pending photos and count the next 8 from each camera? No files will be deleted.')) post('/api/reset'); };
+if ($('capture')) $('capture').onclick = () => post('/api/capture');
+$('reconnect-cameras').onclick = () => post('/api/reconnect');
+$('resume-capture').onclick = () => post('/api/resume_capture');
+$('abandon-capture').onclick = () => { if (confirm('Abandon this incomplete batch? All SD files, downloaded photos and shutter records will be kept.')) post('/api/abandon_capture'); };
+$('retry').onclick = () => post('/api/retry');
+$('acknowledge').onclick = () => { if (confirm('Have you checked CUPS and the physical printer? Continue without submitting this batch again?')) post('/api/acknowledge'); };
+if ($('demo')) $('demo').onclick = () => post('/api/demo');
+document.querySelectorAll('input[data-strip]').forEach(input => input.onchange = async () => {
+  if (!input.files.length) return;
+  const data = new FormData(); data.append('file', input.files[0]);
+  if (await post('/api/overlays/' + input.dataset.strip, data)) $('overlay-' + input.dataset.strip).src = `/overlays/${input.dataset.strip}.png?v=${Date.now()}`;
+  input.value = '';
+});
+async function printerStatus() {
+  try {
+    const data = await requestJson('/api/printer');
+    $('printer-status').textContent = data.status;
+    $('printer-remaining').textContent = 'Prints remaining on roll: ' + (Number.isInteger(data.prints_remaining) ? data.prints_remaining : 'unavailable');
+    $('printer-media').textContent = [data.media, Number.isInteger(data.percent) ? data.percent + '% remaining' : ''].filter(Boolean).join(' · ');
+    const reported = data.reported_at ? 'Last driver report: ' + new Date(data.reported_at * 1000).toLocaleString() + '. ' : '';
+    $('printer-reported').textContent = reported + (data.message || '');
+  } catch {
+    $('printer-status').textContent = 'Printer status unavailable';
+    $('printer-remaining').textContent = 'Prints remaining on roll: unavailable';
+    $('printer-media').textContent = '';
+    $('printer-reported').textContent = 'Reconnecting to printer status…';
+  }
+}
+async function statusLoop() { await refresh(); setTimeout(statusLoop, 1000); }
+async function printerLoop() { await printerStatus(); setTimeout(printerLoop, 15000); }
+statusLoop(); printerLoop();
+
+window.StripshotSpace.bind(document, () => {
+  const button = $('capture');
+  if (button && !button.disabled && !busy) button.click();
+});
+
+function fillLayout(layout) {
+  for (const name of ['margin','top','bottom','gap']) $('layout-' + name).value = (layout[name] * 25.4 / 300).toFixed(2);
+  $('layout-scale').value = layout.photo_scale ?? 100;
+  if (layout.photo_order || !layoutLoaded) {
+    const order = layout.photo_order ?? Array.from({length:4}, (_,i) => [`A${i*2+1}`,`B${i*2+1}`,`A${i*2+2}`,`B${i*2+2}`]);
+    order.forEach((strip,i) => strip.forEach((photo,j) => { $('order-'+(i+1)+'-'+(j+1)).value = photo; }));
+  }
+}
+function previewOverlay(i) {
+  const scale = Number($('overlay-scale-' + i).value);
+  const offset = Number($('overlay-offset-' + i).value);
+  const offsetInput = $('overlay-offset-' + i);
+  offsetInput.setCustomValidity('');
+  if (!Number.isFinite(scale) || scale < 10 || scale > 100) return false;
+  const width = Math.round(600 * scale / 100);
+  const scaleY = Number($('overlay-scale-y-' + i).value);
+  const offsetY = Number($('overlay-offset-y-' + i).value);
+  const yInput = $('overlay-offset-y-' + i);
+  yInput.setCustomValidity('');
+  if (!Number.isFinite(scaleY) || scaleY < 10 || scaleY > 100) return false;
+  const height = Math.round(1800 * scaleY / 100), top = Math.floor((1800-height)/2);
+  yInput.min = -top; yInput.max = 1800-height-top;
+  if (!Number.isInteger(offsetY) || offsetY < -top || offsetY > 1800-height-top) {
+    yInput.setCustomValidity('This vertical offset would crop the finished strip. Reduce the offset or height.');
+    return false;
+  }
+  const left = Math.floor((600 - width) / 2);
+  offsetInput.min = -left;
+  offsetInput.max = 600 - width - left;
+  $('overlay-fit-' + i).textContent = `Allowed offset: ${-left} to ${600 - width - left} pixels. Photos and PNG stay together.`;
+  if (!Number.isInteger(offset) || offset < -left || offset > 600 - width - left) {
+    offsetInput.setCustomValidity('This offset would crop the finished strip. Reduce the offset or shrink the strip to make room.');
+    return false;
+  }
+  // Match the renderer's whole-pixel centering, even at odd widths.
+  const centerAdjustment = Math.floor((600 - width) / 2) - (600 - width) / 2;
+  const yAdjustment = top - (1800-height)/2;
+  $('overlay-' + i).style.transform = `translate(${(offset + centerAdjustment) / 6}%, ${(offsetY + yAdjustment) / 18}%) scale(${width / 600}, ${height / 1800})`;
+  return true;
+}
+for (let i = 1; i <= 4; i++) {
+  for (const field of ['scale', 'offset', 'scale-y', 'offset-y']) $('overlay-' + field + '-' + i).oninput = () => {
+    const fits = previewOverlay(i);
+    $('overlay-settings-message').textContent = fits
+      ? 'Unsaved strip alignment. Save to apply to future sheets.'
+      : `Strip ${i} does not fit. Reduce the offset or shrink its width; the preview keeps the last valid position.`;
+  };
+
+}
+$('overlay-settings-form').onsubmit = async event => {
+  event.preventDefault();
+  if (busy || !overlaySettingsLoaded) return;
+  if (![1, 2, 3, 4].map(previewOverlay).every(Boolean)) {
+    $('overlay-settings-form').reportValidity();
+    return;
+  }
+  const settings = [1, 2, 3, 4].map(i => ({
+    scale_x_percent: Number($('overlay-scale-' + i).value),
+    offset_x_px: Number($('overlay-offset-' + i).value),
+    ...(Number($('overlay-scale-y-' + i).value) !== 100 || Number($('overlay-offset-y-' + i).value) !== 0
+      ? {scale_y_percent: Number($('overlay-scale-y-' + i).value), offset_y_px: Number($('overlay-offset-y-' + i).value)} : {}),
+  }));
+  $('overlay-settings-message').textContent = 'Saving strip alignment…';
+  const ok = await post('/api/overlay-settings', JSON.stringify(settings), true);
+  $('overlay-settings-message').textContent = ok
+    ? 'Strip alignment saved for photos and PNG together. These are the same values used by scan alignment.'
+    : 'Save not confirmed. ' + actionError;
+};
+$('layout-form').onsubmit = async event => {
+  event.preventDefault();
+  $('layout-message').textContent = '';
+  const layout = {};
+  for (const name of ['margin','top','bottom','gap']) layout[name] = Math.round(Number($('layout-' + name).value) * 300 / 25.4);
+  layout.photo_order = Array.from({length:4}, (_,i) => Array.from({length:4}, (_,j) => $('order-'+(i+1)+'-'+(j+1)).value));
+  layout.photo_scale = Number($('layout-scale').value);
+  if (await post('/api/layout', JSON.stringify(layout), true)) {
+    $('layout-message').textContent = 'Saved for future batches and restarts. Current batch unchanged.';
+  } else {
+    $('layout-message').textContent = 'Not saved. ' + actionError;
+  }
+};
+
+if ($('preview-form')) $('preview-form').onsubmit = async event => {
+  event.preventDefault();
+  $('preview-message').textContent = '';
+  const ok = await post('/api/preview-settings', JSON.stringify({fps:Number($('preview-fps').value)}), true);
+  $('preview-message').textContent = ok ? 'Saved. Both previews now use this target; retained after restart.' : 'Not saved. ' + actionError;
+};
+
+$('session-form').onsubmit=async event=>{
+  event.preventDefault();
+  const ok=await post('/api/session-settings',JSON.stringify({countdown_seconds:Number($('countdown-seconds').value)}),true);
+  $('session-message').textContent=ok?'Saved for future sessions. Active batch unchanged.':'Not saved. '+actionError;
+};
+$('slideshow-form').onsubmit=async event=>{
+  event.preventDefault();
+  const ok=await post('/api/slideshow-settings',JSON.stringify({seconds:Number($('slideshow-seconds').value),shuffle_all:$('slideshow-shuffle').checked,source:$('slideshow-source').value}),true);
+  $('slideshow-message').textContent=ok?'Saved. Open slideshows update within five seconds.':'Not saved. '+actionError;
+};
+$('dry-run').onclick=async()=>{
+  const preview=window.open('about:blank','stripshot-dry-run','width=1100,height=850');
+  if(preview) preview.opener=null;
+  $('dry-run-message').textContent='Rendering saved photos — no capture or printing…';
+  const result=await post('/api/dry-run');
+  if(result && result.url) {
+    $('dry-run-link').href=result.url; $('dry-run-link').hidden=false;
+    if(preview) preview.location.href=result.url;
+    $('dry-run-message').textContent='Finished. No paper used.';
+  } else { if(preview) preview.close(); $('dry-run-message').textContent='Preview not created. '+actionError; }
+};

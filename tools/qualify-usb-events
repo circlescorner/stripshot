@@ -16,7 +16,7 @@ if ! command -v gphoto2 >/dev/null 2>&1; then
 fi
 
 gphoto2 --auto-detect | tee "$OUT/auto-detect.txt"
-mapfile -t PORTS < <(gphoto2 --auto-detect | awk '/usb:/{print $2}')
+mapfile -t PORTS < <(gphoto2 --auto-detect | awk '/usb:/{print $NF}')
 
 if [[ ${#PORTS[@]} -ne 2 ]]; then
   echo "ERROR: expected exactly two USB cameras, found ${#PORTS[@]}" >&2
@@ -48,10 +48,10 @@ echo "Now trigger ONE intervalometer cycle that creates 8 images on each camera.
 echo "Confirm visually that HDMI live view remains active before, during, and after the cycle."
 echo
 
-set +e
-wait
-RC=$?
-set -e
+RC=0
+for pid in $PIDS; do
+  wait "$pid" || RC=1
+done
 
 echo
 for i in 1 2; do

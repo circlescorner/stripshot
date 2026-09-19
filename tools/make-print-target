@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""Create a DS40 inspection target; never submits a print job."""
+import sys
+from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont
+
+out = Path(sys.argv[1] if len(sys.argv) > 1 else 'ds40-qualification.png')
+im = Image.new('RGB', (2400, 1800), 'white')
+d = ImageDraw.Draw(im)
+font = ImageFont.truetype('DejaVuSans.ttf', 34)
+small = ImageFont.truetype('DejaVuSans.ttf', 24)
+colors = ['#eaf4ff', '#fff1db', '#edf8e4', '#faeafa']
+for col in range(4):
+    x = col * 600
+    d.rectangle((x, 0, x+599, 1799), fill=colors[col])
+    for inset in (15, 30, 60):
+        d.rectangle((x+inset, inset, x+599-inset, 1799-inset), outline='#444444', width=2)
+    d.text((x+90, 90), f'STRIP {col+1} / TOP', fill='black', font=font)
+    for row in range(4):
+        label = ('A' if col % 2 == 0 else 'B') + str(row*2+1+col//2)
+        d.text((x+240, 240+row*280), label, fill='black', font=font)
+    d.rectangle((x+150, 1330, x+450, 1630), outline='black', width=3)
+    d.text((x+170, 1460), '1 inch square', fill='black', font=small)
+    d.text((x+100, 1660), 'BOTTOM / ' + str(col+1), fill='black', font=font)
+    d.text((x+82, 1705), 'Insets: 0.05 / 0.10 / 0.20 in', fill='black', font=small)
+im.save(out, dpi=(300, 300))
+print(out)

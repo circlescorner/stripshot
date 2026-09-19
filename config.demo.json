@@ -1,0 +1,10 @@
+{
+  "data_dir": "demo-data",
+  "demo": true,
+  "host": "127.0.0.1",
+  "port": 8080,
+  "printer": {
+    "enabled": false
+  },
+  "preview_fps": 3
+}

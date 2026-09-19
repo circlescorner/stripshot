@@ -1,0 +1,65 @@
+{
+  "status": "operator_accepted_diagnostic_centering",
+  "job_id": "DNP_DS40-12",
+  "queue": "DNP_DS40",
+  "driver": "Gutenprint 5.3.4",
+  "target_sha256": "9cf64da967cba6983bee00b4d7220050cb504927168595622425b1a563bddfd9",
+  "sheet_pixels": [
+    2400,
+    1800
+  ],
+  "dpi": 300,
+  "strip_offsets_right_px": [
+    20,
+    15,
+    6,
+    -2
+  ],
+  "clip_each_strip": true,
+  "scale": 1.0,
+  "measurements": [
+    {
+      "strip": 1,
+      "left_gap_mm": 9.4,
+      "right_gap_mm": 10.1,
+      "center_offset_right_mm": -0.35
+    },
+    {
+      "strip": 2,
+      "left_gap_mm": 9.9,
+      "right_gap_mm": 9.9,
+      "center_offset_right_mm": 0.0
+    },
+    {
+      "strip": 3,
+      "left_gap_mm": 9.7,
+      "right_gap_mm": 10.0,
+      "center_offset_right_mm": -0.15
+    },
+    {
+      "strip": 4,
+      "left_gap_mm": 10,
+      "right_gap_mm": 9.8,
+      "center_offset_right_mm": 0.1
+    }
+  ],
+  "operator_visually_accepted": true,
+  "application_integration": "Optional printer.strip_offsets_px; frozen per batch; config.ds40.software.example.json and --ds40-calibration launcher flag",
+  "printing_enabled": false,
+  "options": {
+    "PageSize": "w432h576-div4",
+    "Resolution": "300dpi",
+    "ColorModel": "RGB",
+    "StpLaminate": "Glossy",
+    "StpiShrinkOutput": "Crop",
+    "StpNoCutWaste": "False",
+    "orientation-requested": "4",
+    "number-up": "1"
+  },
+  "limits": [
+    "One corrected photo set accepted; sustained repeatability not established",
+    "Combined live kiosk hardware path pending supervised run",
+    "Printing defaults off; explicit qualified opt-in available"
+  ],
+  "photo_output_accepted_job": "DNP_DS40-13"
+}

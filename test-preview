@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+export LC_ALL=C
+if ! python3 -c 'import gphoto2, flask, PIL' 2>/dev/null; then
+  echo 'Install test dependencies in your Ubuntu terminal:'
+  echo 'sudo apt install python3-gphoto2 python3-flask python3-pil'
+  exit 2
+fi
+# Budget startup, final inventory, eight downloads and cleanup separately.
+# Each inventory allows 300 seconds total, with a 30-second no-progress limit.
+seconds=$(python3 - "$@" <<'PYARGS'
+import argparse
+p = argparse.ArgumentParser(add_help=False)
+p.add_argument('--seconds', type=int, default=90)
+a, _ = p.parse_known_args()
+if not 10 <= a.seconds <= 600:
+    p.error('--seconds must be 10..600')
+print(a.seconds + 870)
+PYARGS
+)
+exec timeout --signal=INT --kill-after=8s "${seconds}s" python3 tools/qualify-usb-preview "$@"

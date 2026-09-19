@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="stripshot-token" content="{{ token }}">
+  <title>Stripshot · Operator</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/request-json.js"></script>
+  <script defer src="/static/spacebar.js"></script>
+  <script defer src="/static/app.js"></script>
+<script defer src="/static/printer-quality.js"></script>
+<script defer src="/static/screen-editor.js"></script>
+<script defer src="/static/edge-fit.js"></script>
+<script defer src="/static/operator-calibration.js"></script>
+<script defer src="/static/scan-alignment.js"></script>
+<script defer src="/static/application-control.js"></script>
+<script defer src="/static/keep-awake.js"></script>
+</head>
+<body>
+<main>
+  <header><a class="brand" href="/">stripshot<span>®</span></a><span class="edition">OPERATOR / 01</span><span id="mode" class="badge">Connecting</span></header>
+  <nav class="page-links" aria-label="Booth pages">
+    <a href="/operator" aria-current="page">Operator</a>
+    {% if software %}<a href="/kiosk" target="_blank" rel="noopener">Guest kiosk</a>{% endif %}
+    <a href="/view/A" target="_blank" rel="noopener">Camera A</a>
+    <a href="/view/B" target="_blank" rel="noopener">Camera B</a>
+    <a href="/slideshow" target="_blank" rel="noopener">Slideshow</a>
+    <a href="/photos" target="_blank" rel="noopener">Saved photos & sheets</a>
+  </nav>
+  <section class="application-panel" aria-label="Application controls">
+    <strong>Stripshot controls</strong><button id="application-stop" type="button" disabled>Stop Stripshot</button><button id="application-restart" type="button" disabled>Restart Stripshot</button>
+    <p id="application-message" class="hint" role="status">Available between sessions. Restart preserves the current printing mode and saved settings. After Stop, use the desktop icon to start again.</p>
+  </section>
+  <section class="intro"><div><p class="eyebrow">TWO CAMERAS. ONE GOOD MOMENT.</p><h1>From shutter<br>to keepsake.</h1><p class="subtitle">Eight photos each. Four strips. All together.</p></div><div class="status-block"><span class="pulse" id="pulse"></span><p id="phase">Starting up</p><small id="phase-detail">Connecting to the cameras…</small></div></section>
+  <div id="notice" role="status" aria-live="polite" hidden></div>
+  <section class="collection panel" aria-label="Current batch">
+    <div class="section-head"><h2>Next sixteen</h2><span class="eyebrow">{{ 'SOFTWARE CAPTURE' if software else 'AUTOMATIC COLLECTION' }}</span></div>
+    <div class="cameras">
+      <article class="camera"><div class="camera-title"><span class="camera-label">A</span><div><h3>Camera A</h3><p id="camera-A">Connecting</p></div><strong id="count-A">0 <small>/ 8</small></strong></div><progress id="progress-A" max="8" value="0" aria-label="Camera A photographs"></progress></article>
+      <article class="camera"><div class="camera-title"><span class="camera-label warm">B</span><div><h3>Camera B</h3><p id="camera-B">Connecting</p></div><strong id="count-B">0 <small>/ 8</small></strong></div><progress id="progress-B" max="8" value="0" aria-label="Camera B photographs"></progress></article>
+    </div>
+    <div class="collection-foot"><p id="waiting">Waiting for the cameras…</p><div class="actions">{% if software %}<button id="capture" class="primary">Take 8 + 8 photos · Space</button>{% elif demo %}<button id="demo" class="primary">Simulate 8 + 8 photos</button>{% endif %}<button id="reset">Reset next 16</button></div></div>
+    <p class="hint">Reset ignores the pending photos and starts a fresh count. SD-card files are always kept.</p>
+    {% if previews %}<p class="hint">Monitor pages: <a href="/view/A" target="_blank" rel="noopener">Camera A</a> · <a href="/view/B" target="_blank" rel="noopener">Camera B</a>. Open each on its monitor and select Full screen.</p>{% endif %}
+    <p id="capture-records" class="hint" hidden></p>
+    <button id="reconnect-cameras" hidden>Reconnect cameras — no photos</button>
+    <button id="resume-capture" hidden>Resume known shots and remaining slots</button><button id="abandon-capture" hidden>Abandon held batch — keep all files</button>
+    <button id="retry" hidden>Retry preparation</button><button id="acknowledge" hidden>I checked the printer — continue without reprinting</button>
+  </section>
+  {% if previews %}<section class="panel" aria-label="Live preview speed">
+    <h2>Live preview speed</h2>
+    <form id="preview-form"><label>Target FPS per camera <input id="preview-fps" type="number" min="1" max="30" step="0.5" required></label>
+      <button id="preview-save" type="submit">Save preview speed</button>
+    </form>
+    <p class="hint">Try 5 FPS first. Higher targets may be limited by camera/USB speed or increase heat and load. Change only between batches. The batch still takes eight photos per camera.</p>
+    <p id="preview-measured" class="hint"></p><p id="preview-message" class="hint" role="status"></p>
+  </section>{% endif %}
+  <section class="panel layout-panel" aria-label="Photo layout">
+    <div class="section-head"><h2>Photo layout</h2><span class="eyebrow">NEXT BATCH</span></div>
+    <p class="hint" id="adjustment-guide">Leave these values as they are for paper alignment. They set the design inside each strip; scan alignment moves and scales the finished photos and PNG together.</p>
+    <details class="adjustment-details"><summary>Photo spacing and order</summary>
+    <form id="layout-form">
+      <div class="layout-fields">
+        <label>Side margins (mm)<input id="layout-margin" type="number" min="0" max="20" step="0.01" required></label>
+        <label>Top margin (mm)<input id="layout-top" type="number" min="0" max="100" step="0.01" required></label>
+        <label>Bottom margin (mm)<input id="layout-bottom" type="number" min="0" max="100" step="0.01" required></label>
+        <label>Gap between photos (mm)<input id="layout-gap" type="number" min="0" max="30" step="0.01" required></label>
+        <label>Photo size (%)<input id="layout-scale" type="number" min="50" max="100" step="1" required></label>
+      </div>
+      <p class="hint">Margins and gaps are measured in the design before the whole strip is fitted to the paper. Photo size shrinks each photo within its slot; 100% fills the slot.</p>
+      <h3 class="order-heading">Photo order — top to bottom on each strip</h3>
+      <div class="strip-grid order-grid">{% for strip in range(1,5) %}<fieldset><legend>Strip {{ strip }}</legend>
+        {% for row in range(1,5) %}<label>Photo {{ row }}<select id="order-{{ strip }}-{{ row }}">
+          {% for camera in ['A','B'] %}{% for number in range(1,9) %}<option value="{{ camera }}{{ number }}">{{ camera }}{{ number }}</option>{% endfor %}{% endfor %}
+        </select></label>{% endfor %}
+      </fieldset>{% endfor %}</div>
+      <p class="hint">Use each of A1–A8 and B1–B8 exactly once. Duplicate or omitted photos are rejected; selections are never rearranged automatically. Changes apply to future batches.</p>
+      <p class="hint" id="layout-message" role="status"></p>
+      <button type="submit" class="primary">Save for next batch</button>
+
+    </form>
+    </details>
+    <p class="hint" id="uptime"></p><p class="hint" id="wake-status"></p>
+  </section>
+  <section class="panel" aria-label="Saved photos"><h2>Saved photos</h2>
+    <p id="photo-folder"></p>
+    <p><a href="/photos" target="_blank" rel="noopener">View saved photos and finished sheets</a></p>
+  </section>
+  <section class="overlays"><div class="section-head"><div><p class="eyebrow">MAKE IT YOURS</p><h2>PNG artwork</h2></div><p class="hint">600 × 1800 PNG · transparent photo areas<br>Text belongs in your artwork.</p></div>
+    <p class="hint">The complete PNG is combined with the photos, then the whole strip is fitted to the paper. Thumbnails show the artwork only; use Preview finished sheet to see everything together.</p>
+    <div class="strip-grid">{% for i in range(1, 5) %}<article class="strip-card"><div class="strip-art"><div class="overlay-canvas"><img src="/overlays/{{ i }}.png" alt="Strip {{ i }} artwork preview" id="overlay-{{ i }}"></div></div><div class="strip-meta"><h3>Strip 0{{ i }}</h3><span id="saved-order-{{ i }}"></span></div><label class="upload" for="file-{{ i }}">Change PNG<input id="file-{{ i }}" type="file" accept="image/png" data-strip="{{ i }}"></label></article>{% endfor %}</div>
+  </section>
+  <section class="panel scan-panel" aria-label="Scan alignment">
+    <div class="section-head"><h2>Strip alignment — photos + PNG</h2><span class="eyebrow">ONE SCAN PER STRIP</span></div>
+    <p>Print a numbered reference sheet, then scan its four cut strips separately. The reference marks measure where the whole design lands relative to each paper edge. One correction moves and scales photos and PNG together. Separate photo centering is no longer used for new strips.</p>
+    <ol><li>Prepare and print the reference sheet below. Keep the four numbered strips.</li><li>Scan each strip at <strong>300 or 600 DPI</strong> with a dark matte sheet behind it. Leave visible backing around all four paper edges. Turn off automatic cropping, resizing and perspective correction.</li><li>Upload strips 1–4, check the green outlines trace the actual cut paper, then calculate and review the correction.</li></ol>
+    <button id="scan-prepare" type="button">Prepare scan reference — no print</button>
+    <a id="scan-target-link" target="_blank" rel="noopener" hidden>Preview reference sheet</a>
+    <button id="scan-print" type="button" disabled>Print one scan reference sheet</button>
+    <p id="scan-target-status" class="hint" role="status"></p>
+    <button id="scan-acknowledge" type="button" hidden>I checked the printer — acknowledge without reprinting</button>
+    <p id="scan-saved-status" class="hint" role="status"></p>
+    <div class="strip-grid scan-grid">{% for i in range(1,5) %}<article>
+      <h3>Scan {{ i }} — strip {{ i }}</h3>
+      <label class="upload">Upload strip {{ i }} scan<input id="scan-file-{{ i }}" type="file" accept="image/png,image/jpeg,image/tiff,.tif,.tiff" disabled></label>
+      <p id="scan-strip-status-{{ i }}" class="hint">Waiting for a scan</p>
+      <a id="scan-preview-link-{{ i }}" target="_blank" rel="noopener" hidden><img id="scan-preview-{{ i }}" alt="Detected paper edges for strip {{ i }}"><span>Inspect paper edges</span></a>
+    </article>{% endfor %}</div>
+    <form id="scan-propose-form"><label for="scan-clearance">Whole design distance from cut edge (mm)</label><input id="scan-clearance" type="number" min="0" max="3" step="0.1" value="0.5" required>
+      <p class="hint">0.5 mm allows for small cut variations. The entire composed strip is fitted inside the paper and printable area, preserving the full PNG. Available print area may require a larger equal margin. This saves the same values as manual alignment below.</p>
+      <button id="scan-calculate" type="submit" disabled>Calculate alignment from scans</button>
+    </form>
+    <div id="scan-results" hidden><h3>Review proposed strip alignment</h3><div class="scan-table-wrap"><table><thead><tr><th>Strip</th><th>Width / height</th><th>X / Y offset</th><th>Before: Whole design distance from cut edge (L / R / T / B)</th><th>After: Whole design distance from cut edge (L / R / T / B)</th></tr></thead><tbody id="scan-result-rows"></tbody></table></div>
+      <p class="hint">Negative scanned margins mean an edge would be outside the paper. Margins are approximate millimeters at 300 DPI. Green outlines must follow the paper edge, not a printed border. Scanner detection and printer repeatability limit accuracy.</p>
+      <label><input id="scan-edges-confirmed" type="checkbox"> I checked all four green paper outlines.</label>
+      <button id="scan-apply" type="button" disabled>Apply to photos + PNG</button>
+    </div>
+    <details class="adjustment-details manual-alignment"><summary>Advanced: manual strip alignment</summary>
+      <p class="hint">Usually leave these scan-derived values alone. Manual edits replace the same alignment; they never add another correction. Each strip moves and scales as one piece, including its photos and PNG.</p>
+      <details class="adjustment-details"><summary>Fill measured white edges on a finished strip</summary><p class="hint">Measure a recent strip printed with the currently saved alignment, from each paper edge to the outside of the complete design. Enter millimeters below; use 0 to leave an edge alone. This expands the photos and PNG together toward each measured edge. It does not remove white space drawn inside your artwork or photo layout.</p><p class="hint">Review the proposal before using it. Expansion stops at the nominal strip boundary to keep the entire PNG intact. The result reports any white edge that cannot be filled safely. Measurements use nominal 300 DPI and need a fresh physical check.</p>
+      <form id="edge-form"><div class="strip-grid">{% for i in range(1,5) %}<fieldset class="overlay-fields"><legend>Strip {{ i }} · white edge (mm)</legend>{% for side in ['left','right','top','bottom'] %}<label>{{ side|capitalize }}<input id="edge-{{ i }}-{{ side }}" type="number" min="0" max="5" step="0.01" value="0" required></label>{% endfor %}</fieldset>{% endfor %}</div><label class="edge-confirm"><input id="edge-current" type="checkbox" required> These measurements are from a sheet made with the current saved alignment.</label><button type="submit">Calculate proposed fit — no change yet</button></form><p id="edge-result" class="hint" role="status"></p><button id="edge-use" type="button" hidden>Use proposal in manual fields below</button></details>
+      <form id="overlay-settings-form"><div class="strip-grid">{% for i in range(1,5) %}<fieldset class="overlay-fields"><legend>Strip {{ i }}</legend>
+        <label for="overlay-scale-{{ i }}">Width (%) — strip {{ i }}</label><input id="overlay-scale-{{ i }}" type="number" min="10" max="100" step="0.0001" value="100" required>
+        <label for="overlay-offset-{{ i }}">Horizontal offset (pixels) — strip {{ i }}</label><input id="overlay-offset-{{ i }}" type="number" min="-600" max="600" step="1" value="0" required>
+        <label for="overlay-scale-y-{{ i }}">Height (%) — strip {{ i }}</label><input id="overlay-scale-y-{{ i }}" type="number" min="10" max="100" step="0.0001" value="100" required>
+        <label for="overlay-offset-y-{{ i }}">Vertical offset (pixels) — strip {{ i }}</label><input id="overlay-offset-y-{{ i }}" type="number" min="-810" max="810" step="1" value="0" required>
+        <p id="overlay-fit-{{ i }}" class="hint"></p>
+      </fieldset>{% endfor %}</div>
+      <p class="hint">Positive offsets move right/down; negative left/up. Shrink to make room to move. An edge cannot be placed outside its printable strip. Saved changes apply to new sessions and previews; existing sessions keep their frozen settings.</p>
+      <button type="submit" id="overlay-save" class="primary" disabled>Save strip alignment</button><p id="overlay-settings-message" class="hint" role="status"></p>
+      </form>
+    </details>
+    <p id="scan-message" role="status"></p>
+    <p class="hint">After applying, print and scan a fresh reference to verify the result. Ordinary photo-strip scans cannot be measured reliably here; use this page’s numbered reference sheet. Preparing, uploading and calculating never print or change alignment.</p>
+  </section>
+  <section class="panel output-preview" aria-label="Preview finished sheet">
+    <h2>Preview finished sheet</h2><p class="hint">Uses the last completed photos, current PNGs and saved strip alignment. Save edits first. No camera capture or print.</p>
+    <button id="dry-run">Preview with saved photos</button><a id="dry-run-link" target="_blank" rel="noopener" hidden>Open finished preview</a><p id="dry-run-message" class="hint" role="status"></p>
+  </section>
+  <section class="panel" aria-label="Session countdown"><h2>Session countdown</h2>
+    <form id="session-form"><label>Seconds before each paired photo (0 disables)<input id="countdown-seconds" type="number" min="0" max="10" step="1" required></label><button type="submit">Save for future sessions</button><p id="session-message" class="hint" role="status"></p></form>
+    <p class="hint">A real countdown starts before each new paired photo. While capture is busy, the screen says “Taking photo…” instead of guessing the next camera-ready time.</p>
+  </section>
+  <section class="panel screen-panel" aria-label="Live view and kiosk text"><h2>Live view & kiosk text</h2><p class="hint">Edit each message and its style, including loading, countdown, capture and recovery screens. Changes update open guest screens after Save; they never take a photo.</p>
+  <form id="screen-form"><label class="screen-route">Countdown appears on <select id="screen-countdown"><option value="A">Camera A page</option><option value="B">Camera B page</option></select></label><p class="hint">The other camera page keeps showing its live preview during 3, 2, 1. Camera previews still pause while the cameras take real photos.</p>
+  <details class="adjustment-details"><summary>Edit wording and style for every screen</summary><label>Text to edit <select id="screen-item"></select></label><div class="screen-editor"><div><label>Text (leave blank to hide the wording)<textarea id="screen-text" rows="3" maxlength="500"></textarea></label><p id="screen-placeholders" class="hint"></p><div class="layout-fields">
+  <label>Font<select id="screen-font"></select></label><label>Size (px)<input id="screen-size" type="number" min="8" max="180" step="1"></label><label>Weight<select id="screen-weight"><option value="400">Regular</option><option value="700">Bold</option></select></label><label>Style<select id="screen-italic"><option value="false">Normal</option><option value="true">Italic</option></select></label><label>Text color<input id="screen-color" type="color"></label><label>Background<input id="screen-background" type="color"></label><label><input id="screen-transparent" type="checkbox"> Transparent background</label><label>Text alignment<select id="screen-align"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label>Letter spacing (px)<input id="screen-spacing" type="number" min="-2" max="20" step="0.1"></label><label>Line height<input id="screen-line_height" type="number" min="0.8" max="3" step="0.1"></label></div></div><div class="screen-sample"><p id="screen-sample-text"></p></div></div></details>
+  <button id="screen-save" type="submit" class="primary" disabled>Save screen text & countdown page</button><p id="screen-message" class="hint" role="status">Loading saved screen settings…</p></form></section>
+  <section class="panel" aria-label="Slideshow settings"><h2>Slideshow</h2>
+    <p><a href="/slideshow" target="_blank" rel="noopener">Open slideshow in a new window</a></p>
+    <form id="slideshow-form"><div class="layout-fields"><label>Seconds per photo<input id="slideshow-seconds" type="number" min="1" max="120" step="0.5" required></label>
+    <label>Photos to show<select id="slideshow-source"><option value="all">All completed batches — individual photos</option><option value="latest">Latest completed batch — individual photos</option><option value="sheets">Finished four-strip sheets</option></select></label>
+    <label><input id="slideshow-shuffle" type="checkbox"> Shuffle all</label></div><button type="submit">Save slideshow settings</button><p id="slideshow-message" class="hint" role="status"></p></form>
+    <p class="hint">Use ← and → on the slideshow page, or its Previous/Next buttons. Settings are saved and update open slideshows automatically. Only completed local batches are shown.</p>
+  </section>
+  <section class="bottom-grid"><article class="panel last"><p class="eyebrow">THE LAST KEEPSAKE</p><h2 id="last-title">Your first sheet is next.</h2><p id="last-detail" class="hint">Completed sheets appear here.</p><a id="last-preview-link" hidden target="_blank" rel="noopener"><img id="last-preview" hidden alt="Last rendered four-strip sheet"><span>View full-resolution sheet ↗</span></a></article><article class="panel print"><p class="eyebrow">OUTPUT</p><h2>Printer settings</h2><div class="print-spec"><span>6 × 8 INCH SHEET</span><span>4 × 2 × 6 STRIPS</span><span>300 DPI</span></div>{% if software %}<p id="printing-mode" role="status">Checking printing mode…</p><button id="printing-toggle" type="button" disabled>Enable live printing</button><p class="hint">Live printing sends one sheet for each new completed session. Dry run saves photos and sheets without printing. Change between sessions; switching sends no job and does not reprint saved sessions. This choice lasts until the kiosk stops; startup uses the launch configuration.</p><p id="printing-message" class="hint" role="status"></p>{% endif %}<details class="adjustment-details" id="printer-quality-panel"><summary>Photo print quality</summary><p class="hint">DS40 driver adjustments affect printer output only. Screen previews and saved originals do not change. Paper, cutting, orientation and alignment stay fixed.</p><form id="printer-quality-form"><div id="printer-quality-fields" class="quality-fields"></div><div class="quality-actions"><button id="quality-baseline" type="button" disabled>Use baseline values</button><button id="quality-save" type="submit" class="primary" disabled>Save print quality</button></div><p id="quality-message" class="hint" role="status">Reading the installed driver…</p></form><p class="hint">Baseline is the existing driver’s neutral profile, not a universal best setting. Save applies only to future sessions. It never enables printing or sends a job. Compare physical prints only when you choose to print.</p></details><p id="printer-status" class="hint">Checking print configuration…</p><p id="printer-remaining" role="status"><strong>Prints remaining on roll: checking…</strong></p><p id="printer-media" class="hint"></p><p id="printer-reported" class="hint"></p><p class="hint">“Submitted” means CUPS accepted the job. Check the printer for physical completion.</p></article></section>
+  <footer><span>STRIPSHOT / MADE TO KEEP</span><span>All camera files are kept.</span></footer>
+</main>
+</body></html>

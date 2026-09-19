@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""Run the real software-capture appliance with printing forcibly disabled."""
+import argparse
+import json
+import logging
+import signal
+import sys
+import tempfile
+import threading
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from werkzeug.serving import make_server
+from app import create_app
+from batch import Engine
+from camera import DemoCamera, GPhotoCamera, discover
+from config import load_config
+from storage import ProcessLock, save_json
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--data-dir', type=Path, help='Reuse the printed evidence directory to test restart recovery')
+    parser.add_argument('--port', type=int, default=8090)
+    parser.add_argument('--demo', action='store_true')
+    parser.add_argument('--ds40-calibration', action='store_true',
+                        help='Use the accepted DS40 offsets for new dry-run batches')
+    args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO)
+    evidence = (args.data_dir or Path(tempfile.mkdtemp(prefix='stripshot-two-cameras-'))).resolve()
+    lock = ProcessLock(evidence)
+    engine = server = server_thread = None
+    stopping = threading.Event()
+    signal.signal(signal.SIGINT, lambda *_: stopping.set())
+    signal.signal(signal.SIGTERM, lambda *_: stopping.set())
+    print('Evidence:', evidence, flush=True)
+    print('Restart using: bash test-two-cameras --data-dir ' + str(evidence), flush=True)
+    try:
+        if args.demo:
+            found = [{'serial': c, 'model': 'Demo'} for c in ('A', 'B')]
+        else:
+            import gphoto2 as gp
+            attached = list(gp.Camera.autodetect())
+            if len(attached) != 2 or any('D3300' not in model for model, _ in attached):
+                raise RuntimeError('Connect exactly two D3300 cameras. No shutters have been requested.')
+            found = sorted(discover(), key=lambda camera: camera['serial'])
+        if len({c['serial'] for c in found}) != 2:
+            raise RuntimeError('Two distinct camera serials are required')
+        config_path = evidence / 'qualification-config.json'
+        if not config_path.exists():
+            config = json.loads((ROOT / 'config.software.example.json').read_text())
+            config.update(data_dir=str(evidence), demo=args.demo, port=args.port,
+                          cameras={c: {'serial': item['serial']} for c, item in zip(('A', 'B'), found)})
+            save_json(config_path, config)
+        config = load_config(config_path)
+        if config['demo'] != args.demo or config['camera_mode'] != 'software' or config['printer']['enabled']:
+            raise RuntimeError('Existing evidence configuration is not a matching software dry run')
+        if Path(config['data_dir']) != evidence:
+            raise RuntimeError('Saved data directory must match the locked evidence directory')
+        config['port'] = args.port
+        if args.ds40_calibration:
+            # Existing batches retain their frozen printer settings.
+            profile = json.loads((ROOT / 'config.ds40.software.example.json').read_text())
+            config['printer'] = profile['printer']
+            if config['printer']['enabled']:
+                raise RuntimeError('Qualification profile must keep printing disabled')
+            from render import validate_strip_offsets
+            validate_strip_offsets(config['printer']['strip_offsets_px'])
+            print('DS40 centering for new batches: ' + str(config['printer']['strip_offsets_px']), flush=True)
+        by_serial = {item['serial']: item for item in found}
+        adapters = {}
+        for c in ('A', 'B'):
+            serial = config['cameras'][c]['serial']
+            if serial not in by_serial:
+                raise RuntimeError('Saved camera identity is missing; preserve this evidence directory')
+            item = by_serial[serial]
+            print(f'Camera {c}: {serial}', flush=True)
+            adapters[c] = DemoCamera(evidence / 'demo-cards', c) if args.demo else GPhotoCamera(item['port'], serial)
+        engine = Engine(config, adapters)
+        # Bind before opening persistent camera sessions; a busy port is a quick error.
+        server = make_server('127.0.0.1', args.port, create_app(engine), threaded=True)
+        server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        engine.start()
+        print(f'Operator: http://127.0.0.1:{args.port}/', flush=True)
+        print('Open both monitor links. When ready, click Take 8 + 8 photos once.', flush=True)
+        print('This takes sixteen new photos. Printing is disabled. Ctrl+C closes the test.', flush=True)
+        previous = None
+        while not stopping.wait(.5):
+            status = engine.status()
+            signature = (status['phase'], status['counts'], status['error'],
+                         status['last']['id'] if status['last'] else None)
+            if signature != previous:
+                print(json.dumps({'phase': status['phase'], 'counts': status['counts'],
+                                  'error': status['error'], 'last_batch': signature[-1]}), flush=True)
+                save_json(evidence / 'report.json', {
+                    'qualification': 'software integration; physical observations still required',
+                    'full_card_audit': False, 'status': status})
+                previous = signature
+    finally:
+        if server_thread is not None:
+            server.shutdown()
+            server_thread.join(2)
+        if server is not None:
+            server.server_close()
+        if engine is not None:
+            engine.stop()
+            save_json(evidence / 'cleanup.json', {c: {
+                'worker_alive': w.is_alive(), 'cleanup_error': w.cleanup_error,
+                'usb_release_confirmed': not w.is_alive() and not w.cleanup_error,
+            } for c, w in engine.workers.items()})
+        lock.close()
+
+
+if __name__ == '__main__':
+    main()

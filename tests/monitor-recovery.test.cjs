@@ -1,0 +1,36 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const Loop=require('../static/resilient-loop.js');
+const text=require('../static/monitor-state.js');
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+(async()=>{
+ const listeners={},documentListeners={},elements={};
+ for(const id of ['frame','message','wedding','fullscreen'])elements[id]={hidden:false};
+ let requests=0,decodes=0,releasedDecode,revoked=[],issued=[],displayUrls=[];
+ Object.defineProperty(elements.frame,'src',{set(value){displayUrls.push(value);},get(){return displayUrls.at(-1);}});
+ const window={StripshotMonitorText:text,StripshotResilientLoop:class extends Loop{constructor(run){super(run,{deadline:20,delay:10});}},addEventListener(type,fn){(listeners[type]??=[]).push(fn);}};
+ const document={body:{dataset:{camera:'A'}},hidden:false,getElementById:id=>elements[id],addEventListener(type,fn){documentListeners[type]=fn;}};
+ let fetchMode='stall',imageMode='stall',interval;
+ const sandbox={window,document,performance,AbortController,Image:class{decode(){decodes++;return imageMode==='stall'?new Promise(resolve=>{releasedDecode=resolve;}):Promise.resolve();}},URL:{createObjectURL(){const url='blob:'+issued.length;issued.push(url);return url;},revokeObjectURL(url){revoked.push(url);}},fetch:async url=>{
+  assert.ok(url==='/api/monitor/status'||url==='/api/preview/A.jpg','display recovery only uses read endpoints');
+  if(url==='/api/monitor/status')return{ok:true,json:async()=>({active:false,countdown_remaining:null})};
+  requests++;if(fetchMode==='stall')return new Promise(()=>{});
+  if(fetchMode==='fail')return{ok:false};
+  return{ok:true,headers:{get:()=>15},blob:async()=>({})};
+ },setInterval:fn=>{interval=fn;return 1;}};
+ vm.runInNewContext(fs.readFileSync('static/monitor.js','utf8'),sandbox);
+ await sleep(75);assert.ok(requests>=2,'stalled fetch recovers');
+ fetchMode='ok';await sleep(45);assert.ok(decodes>=1,'decode attempted');
+ await sleep(35);assert.ok(revoked.length>=1,'stalled decode releases object URL');
+ const oldDecode=releasedDecode;imageMode='ok';await sleep(120);
+ assert.ok(displayUrls.length>=1,'display resumes after stalled decoding');
+ const before=displayUrls.length;oldDecode();await sleep(1);assert.equal(displayUrls.length,before,'late decode cannot publish');
+ fetchMode='fail';await sleep(100);interval();assert.equal(elements.frame.hidden,true,'failed frames hide stale display');
+ fetchMode='ok';documentListeners.visibilitychange();await sleep(20);assert.equal(elements.frame.hidden,false,'visibility recovery resumes display');
+ for(const fn of listeners.pagehide)fn();assert.ok(issued.every(url=>revoked.includes(url)),'all object URLs released on pagehide');
+ const stopped=requests;await sleep(80);assert.equal(requests,stopped,'pagehide stops requests');
+ for(const fn of listeners.pageshow)fn();await sleep(15);assert.ok(requests>stopped,'bfcache pageshow restarts requests');
+ for(const fn of listeners.pagehide)fn();
+ console.log('Monitor stalled fetch/decode, failed frames, late result, visibility, bfcache and URL cleanup: PASS');
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -1,0 +1,43 @@
+{
+  "data_dir": "software-data",
+  "demo": false,
+  "host": "127.0.0.1",
+  "port": 8080,
+  "cameras": {
+    "A": {
+      "serial": "REPLACE_CAMERA_A"
+    },
+    "B": {
+      "serial": "REPLACE_CAMERA_B"
+    }
+  },
+  "camera_mode": "software",
+  "poll_seconds": 2,
+  "layout": {
+    "margin": 36,
+    "gap": 24,
+    "top": 36,
+    "bottom": 180,
+    "photo_scale": 95
+  },
+  "printer": {
+    "enabled": false,
+    "queue": "DNP_DS40",
+    "options": {
+      "PageSize": "w432h576-div4",
+      "Resolution": "300dpi",
+      "ColorModel": "RGB",
+      "StpLaminate": "Glossy",
+      "StpiShrinkOutput": "Crop",
+      "StpNoCutWaste": "False",
+      "orientation-requested": "4"
+    },
+    "strip_offsets_px": [
+      20,
+      15,
+      6,
+      -2
+    ]
+  },
+  "preview_fps": 3
+}

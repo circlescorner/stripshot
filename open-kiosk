@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Dedicated browser profile keeps operator authentication out of the guest browser.
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROFILE="${STRIPSHOT_BROWSER_PROFILE:-$ROOT/data/kiosk-browser}"
+URL="${1:-http://127.0.0.1:8090/kiosk}"
+mkdir -p "$PROFILE"
+if command -v chromium >/dev/null; then
+  exec chromium --kiosk --no-first-run --user-data-dir="$PROFILE" "$URL"
+elif command -v google-chrome >/dev/null; then
+  exec google-chrome --kiosk --no-first-run --user-data-dir="$PROFILE" "$URL"
+elif command -v firefox >/dev/null; then
+  exec firefox --no-remote --profile "$PROFILE" --kiosk "$URL"
+else
+  echo 'Install Firefox or Chromium, then rerun open-kiosk.' >&2
+  exit 1
+fi

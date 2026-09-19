@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Stripshot · Camera {{ label }}</title>
+  <link rel="stylesheet" href="/static/monitor.css">
+  <script defer src="/static/screen-text.js"></script>
+<script defer src="/static/monitor-state.js"></script>
+  <script defer src="/static/resilient-loop.js"></script>
+  <script defer src="/static/monitor.js"></script>
+<script defer src="/static/keep-awake.js"></script>
+</head>
+<body data-camera="{{ label }}">
+  <img id="frame" alt="Camera {{ label }} live preview" hidden>
+  <p id="wedding" hidden>MalanaphyVickWedding</p>
+  <p id="message" role="status">Waiting for camera {{ label }}…</p>
+  <footer><span id="camera-label">{% if demo %}DEMO · {% endif %}CAMERA {{ label }}</span><span id="recovery-detail"></span><button id="fullscreen">Full screen</button></footer>
+</body>
+</html>
