@@ -40,7 +40,7 @@ class OperatorToolsTests(unittest.TestCase):
             result=e.action('dry_run')
         output=e.root/'dry-runs'/result['id']
         with Image.open(output/'sheet.png') as sheet:
-            self.assertEqual(sheet.size,(2400,1800));self.assertEqual(sheet.getpixel((60,50)),(0,0,255))
+            self.assertEqual(sheet.size,(2400,1800));self.assertEqual(sheet.getpixel((50,50)),(0,0,255))
         manifest=json.loads((output/'manifest.json').read_text())
         self.assertEqual(manifest['layout']['photo_scale'],90)
         self.assertEqual(manifest['strip_offsets_px'],[10,11,12,13])

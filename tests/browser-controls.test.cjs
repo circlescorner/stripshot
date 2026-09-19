@@ -3,7 +3,7 @@ const fs=require('node:fs'),vm=require('node:vm');
 const requestJson=require('../static/request-json.js');
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
-const elements=()=>new Proxy({}, {get:(target,id)=>target[id]??=( {value:10,disabled:false,hidden:false,textContent:'',replaceChildren(){},append(){},addEventListener(type,fn){this[type]=fn;}} )});
+const elements=()=>new Proxy({}, {get:(target,id)=>target[id]??=( {style:{},value:10,disabled:false,hidden:false,textContent:'',setCustomValidity(value){this.validationMessage=value;},reportValidity(){},replaceChildren(){},append(){},addEventListener(type,fn){this[type]=fn;}} )});
 
 async function requests(){
  const original=global.fetch;
@@ -109,6 +109,47 @@ async function printing(){
  assert.equal(nodes['printing-toggle'].disabled,true,'disconnect disables mode change');
 }
 
+async function overlays(){
+ const nodes=elements(),calls=[];
+ const state={overlay_settings:[{scale_x_percent:90,offset_x_px:-12},...Array.from({length:3},()=>({scale_x_percent:100,offset_x_px:0}))],
+  calibration:{strip_offsets_px:[26,16,6,-2]},slideshow:{},previews:{A:{},B:{}},
+  cameras:{A:'connected',B:'connected'},counts:{A:0,B:0},phase:'watching'};
+ const context={document:{getElementById:id=>nodes[id],querySelector:()=>({content:'token'}),
+  querySelectorAll:()=>[],createTextNode:()=>({}),createElement:()=>({})},
+  window:{StripshotSpace:{bind(){}},StripshotRequestJson:async(url,options)=>{
+   if(url==='/api/status')return state;
+   if(url==='/api/printer')return {};
+   const d=deferred();calls.push({url,options,...d});return d.promise;
+  }},setTimeout(){}};
+ vm.createContext(context);vm.runInContext(fs.readFileSync('static/app.js','utf8'),context);
+ await turn();assert.equal(nodes['overlay-scale-1'].value,90);
+ assert.equal(nodes['overlay-offset-1'].value,-12);
+ assert.equal(nodes['overlay-1'].style.transform,'translateX(-2%) scaleX(0.9)');
+ nodes['overlay-scale-2'].value=80;nodes['overlay-scale-2'].oninput();
+ nodes['overlay-offset-2'].value=30;nodes['overlay-offset-2'].oninput();
+ assert.equal(nodes['overlay-2'].style.transform,'translateX(5%) scaleX(0.8)');
+ assert.equal(nodes['overlay-1'].style.transform,'translateX(-2%) scaleX(0.9)');
+ await vm.runInContext('refresh()',context);
+ assert.equal(nodes['overlay-scale-2'].value,80,'polling preserves unsaved edits');
+ const save=nodes['overlay-settings-form'].onsubmit({preventDefault(){}});await turn();
+ assert.equal(calls[0].url,'/api/overlay-settings');
+ const expected=[state.overlay_settings[0],{scale_x_percent:80,offset_x_px:30},...state.overlay_settings.slice(2)];
+ assert.deepEqual(JSON.parse(calls[0].options.body),expected);
+ assert.equal(calls[0].options.headers['X-Stripshot-Token'],'token');
+ calls[0].resolve({ok:true});await save;
+ assert.match(nodes['overlay-settings-message'].textContent,/saved/);
+ nodes['overlay-reset-2'].onclick();assert.equal(nodes['overlay-scale-2'].value,100);
+ assert.equal(nodes['overlay-offset-2'].value,0);assert.equal(nodes['overlay-offset-1'].value,-12);
+ const failed=nodes['overlay-settings-form'].onsubmit({preventDefault(){}});await turn();
+ calls[1].reject(Error('Disk full'));await failed;
+ assert.match(nodes['overlay-settings-message'].textContent,/Save not confirmed.*Disk full/);
+ assert.equal(calls.length,2,'failed save is not automatically retried');
+ nodes['overlay-offset-2'].value=1;nodes['overlay-offset-2'].oninput();
+ assert.match(nodes['overlay-offset-2'].validationMessage,/crop/);
+ await nodes['overlay-settings-form'].onsubmit({preventDefault(){}});
+ assert.equal(calls.length,2,'cropping placement cannot be saved');
+}
+
 async function calibration(){
  const nodes=elements(),gets=[],posts=[];
  const context={$:id=>nodes[id],busy:false,actionError:'Failed',confirm:()=>true,setTimeout(){},
@@ -136,4 +177,4 @@ async function calibration(){
  old.resolve(target('second'));await oldRefresh;
  assert.match(nodes['calibration-target-status'].textContent,/third/,'stale polling cannot replace a newly prepared target');
 }
-(async()=>{await requests();await kiosk();await operator();await printing();await calibration();console.log('JSON deadlines, kiosk uncertainty/stale status, calibration proposal invalidation: PASS');})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{await requests();await kiosk();await operator();await printing();await overlays();await calibration();console.log('JSON deadlines, kiosk uncertainty/stale status, PNG adjustments, calibration proposal invalidation: PASS');})().catch(error=>{console.error(error);process.exitCode=1;});

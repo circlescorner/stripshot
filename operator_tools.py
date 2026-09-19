@@ -4,13 +4,18 @@ import hashlib
 import json
 import time
 import uuid
-from render import render_sheet, validate_strip_offsets, validate_vertical_offset
+from render import (render_sheet, validate_strip_offsets, validate_vertical_offset,
+                    default_overlay_settings, validate_overlay_settings)
 from storage import atomic_bytes, save_json
 from qualification import validate_software_printing
 
 
 class OperatorTools:
     def initialize_operator_tools(self):
+        self.overlay_settings_path = self.root / 'operator-overlays.json'
+        self.overlay_settings = (json.loads(self.overlay_settings_path.read_text())
+                                 if self.overlay_settings_path.exists() else default_overlay_settings())
+        validate_overlay_settings(self.overlay_settings)
         self.calibration_path = self.root / 'operator-calibration.json'
         if self.calibration_path.exists():
             self.apply_calibration(json.loads(self.calibration_path.read_text()), persist=False)
@@ -21,6 +26,13 @@ class OperatorTools:
         self.validate_countdown(self.countdown_seconds)
         self.next_photo = None
         self.round_number = None
+
+    def save_overlay_settings(self, candidate):
+        candidate = copy.deepcopy(candidate)
+        validate_overlay_settings(candidate)
+        with self.lock:
+            save_json(self.overlay_settings_path, candidate)
+            self.overlay_settings = candidate
 
     @staticmethod
     def validate_countdown(seconds):
@@ -81,6 +93,7 @@ class OperatorTools:
             if not batch or batch.get('stage') != 'complete':
                 raise ValueError('Complete one photo session first; dry run reuses its sixteen saved originals')
             layout = copy.deepcopy(self.layout)
+            overlay_settings = copy.deepcopy(self.overlay_settings)
             offsets = list(self.config['printer'].get('strip_offsets_px',[0]*4))
             vertical = self.config['printer'].get('sheet_offset_y_px',0)
         source = self.root / 'batches' / batch['id']
@@ -101,10 +114,12 @@ class OperatorTools:
             target=output/f'overlay{n}.png'
             if path.exists(): atomic_bytes(target,path.read_bytes()); overlays.append(target)
             else: overlays.append(None)
-        render_sheet(photos,overlays,layout,output/'sheet.png',strip_offsets_px=offsets,sheet_offset_y_px=vertical)
+        render_sheet(photos,overlays,layout,output/'sheet.png',strip_offsets_px=offsets,
+                     sheet_offset_y_px=vertical,overlay_settings=overlay_settings)
         save_json(output/'manifest.json',{'id':ident,'source_batch':batch['id'],
                   'created_at':time.time(),'layout':layout,'strip_offsets_px':offsets,'sheet_offset_y_px':vertical,
                   'original_hashes':hashes,'overlays':[p.name if p else None for p in overlays],
+                  'overlay_settings':overlay_settings,
                   'status':'render_only_no_capture_no_print'})
         return {'id':ident,'url':'/dry-runs/'+ident}
 

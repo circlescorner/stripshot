@@ -120,6 +120,7 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
                     'countdown_seconds':self.countdown_seconds,
                     'preview_fps': self.config.get('preview_fps', 0),
                     'layout': copy.deepcopy(self.layout),
+                    'overlay_settings': copy.deepcopy(self.overlay_settings),
                     'uptime_seconds': int(time.monotonic() - self.started_at),
                     'cameras': dict(self.camera_status),
                     'previews': {c: w.preview_status() for c, w in self.workers.items()},
@@ -209,6 +210,7 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
                 'files': {c: self.state['pending'][c][:8] for c in ('A', 'B')},
                 'countdown_seconds':self.countdown_seconds,
                 'layout': copy.deepcopy(self.layout),
+                'overlay_settings': copy.deepcopy(self.overlay_settings),
                 'printer': copy.deepcopy(self.config['printer']), 'overlays': overlays,
             }
             if software:
@@ -256,7 +258,8 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
         sheet = directory / 'sheet.png'
         render_sheet(photos, overlays, batch['layout'], sheet,
                      strip_offsets_px=batch['printer'].get('strip_offsets_px', [0, 0, 0, 0]),
-                     sheet_offset_y_px=batch['printer'].get('sheet_offset_y_px',0))
+                     sheet_offset_y_px=batch['printer'].get('sheet_offset_y_px',0),
+                     overlay_settings=batch.get('overlay_settings'))
         with self.lock:
             if any(w.failure for w in self.workers.values()):
                 raise RuntimeError('Camera failed during preparation; restart after checking connections')
@@ -282,6 +285,7 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
             self.phase, self.error = 'watching', None
 
     def action(self, action, *args):
+        if action == 'overlay_settings': return self.save_overlay_settings(args[0])
         if action == 'calibration_prepare': return self.calibration_print.prepare()
         if action == 'calibration_print': return self.calibration_print.print_once(args[0]['id'])
         if action == 'calibration_measure': return self.calibration_print.measure(args[0])

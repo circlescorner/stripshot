@@ -180,6 +180,15 @@ EXIF-oriented, center-cropped photos. The full sheet is **2400 × 1800 at 300 DP
 a landscape 8 × 6 inch image for one 6 × 8 sheet. Nikon JPEG/MPO downloads retain
 original bytes; rendering uses the full-resolution primary image, not thumbnails.
 
+Each PNG card has independent horizontal scale (%) and offset (pixels) controls.
+Width can be 10–100%; height stays unchanged. Scaling is centered, then positive
+offsets move right and negative offsets move left. The entire PNG must fit inside
+its strip: at 100% width only zero offset fits; at 90%, offsets from -30 to +30
+pixels fit. Out-of-bounds settings are rejected, never cropped or silently changed.
+Save PNG adjustments to retain them after restart and use them in future batches
+and dry runs. Each batch freezes its own settings. PNG placement is independent of
+photo calibration so all artwork edges remain visible. Uploads stay unchanged.
+
 The host DS40 queue and available media/cutting options have been identified;
 [physical qualification](docs/PRINT-QUALIFICATION.md) remains pending explicit authorization. No print
 or PR merge is authorized by this development handoff.
@@ -214,9 +223,10 @@ new batches. Existing held batches retain their own frozen settings, even if the
 profile or configuration changes. Old manifests without offsets render as before.
 Do not run this alongside another camera-owning process.
 
-The correction moves the complete photo-plus-overlay strip by +20, +15, +6, -2
-pixels, clips within each strip and adds white at the exposed edge. Uploaded art
-and original photos remain untouched. The dashboard preview shows the same
+The correction moves photos by +20, +15, +6, -2 pixels, clips photographs within
+each strip and adds white at the exposed edge. PNGs are placed afterward using
+their own scale/offset settings, so calibration cannot crop any PNG edge. Uploaded
+art and original photos remain untouched. The dashboard preview shows the same
 corrected sheet that the print path would use. Photo order remains A1,B1,A2,B2
 down strip 1, A3,B3,A4,B4 down strip 2, and so on, as the operator requested.
 

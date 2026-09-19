@@ -105,10 +105,21 @@ controls instead of enabling every button.
 
 ## Border preservation
 
-The proposed enlargement/cropping was rejected and removed. No automatic scaling
-or edge-color extension is applied. Rendering uses the previous saved calibration
-behavior and does not alter source artwork. Saved centering settings are unchanged.
-The white-edge issue remains unresolved; no replacement border treatment is enabled.
+PNGs must never be cropped. Each PNG now has its own horizontal width percentage
+and horizontal offset in the operator panel. Scale is 10–100%, centered before
+applying the offset; height remains 1800 pixels. Only offsets that keep the entire
+resized 600-pixel-wide source canvas within its strip are accepted. For example,
+90% width permits offsets from -30 to +30 pixels. The form shows the allowed range,
+and the renderer independently rejects any out-of-bounds placement.
+
+Calibration now translates the photos before compositing the full PNG. Neither X
+nor Y calibration can clip PNG edges. Saved calibration numbers are retained, but
+their effect on artwork is replaced by the independent PNG controls. Source PNGs,
+original photos and already rendered sheets are not rewritten. There is no automatic
+enlargement, edge-color extension or hidden fitting. Changes are saved in
+`operator-overlays.json`, frozen into each new batch and recorded in dry-run manifests.
+This guarantees complete artwork in rendered files; physical edge/cut qualification
+has not been repeated.
 
 ## Deployment and verification
 

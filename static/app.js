@@ -9,6 +9,7 @@ let layoutLoaded = false;
 let refreshing = false;
 let previewLoaded = false;
 let extrasLoaded = false;
+let overlaySettingsLoaded = false;
 const requestJson = window.StripshotRequestJson;
 const descriptions = {
   reconnecting: ['Reconnecting cameras', 'Verifying camera identities and restoring previews. No shutter is issued.'],
@@ -34,6 +35,15 @@ async function refresh() {
       $('printing-mode').textContent = state.demo ? 'Demo — printing unavailable' : printingEnabled ? 'Live printing enabled' : 'Dry run — no printing';
     }
     if ($('photo-folder')) $('photo-folder').textContent = 'Files are stored in: ' + state.data_dir + '/batches/';
+    if (!overlaySettingsLoaded && state.overlay_settings) {
+      state.overlay_settings.forEach((settings, i) => {
+        $('overlay-scale-' + (i + 1)).value = settings.scale_x_percent;
+        $('overlay-offset-' + (i + 1)).value = settings.offset_x_px;
+        previewOverlay(i + 1);
+      });
+      overlaySettingsLoaded = true;
+    }
+    $('overlay-save').disabled = busy || !overlaySettingsLoaded;
     if (!layoutLoaded && state.layout) {
       fillLayout(state.layout);
       layoutLoaded = true;
@@ -183,6 +193,57 @@ function fillLayout(layout) {
     order.forEach((strip,i) => strip.forEach((photo,j) => { $('order-'+(i+1)+'-'+(j+1)).value = photo; }));
   }
 }
+function previewOverlay(i) {
+  const scale = Number($('overlay-scale-' + i).value);
+  const offset = Number($('overlay-offset-' + i).value);
+  const offsetInput = $('overlay-offset-' + i);
+  offsetInput.setCustomValidity('');
+  if (!Number.isFinite(scale) || scale < 10 || scale > 100) return false;
+  const width = Math.round(600 * scale / 100);
+  const left = Math.floor((600 - width) / 2);
+  offsetInput.min = -left;
+  offsetInput.max = 600 - width - left;
+  $('overlay-fit-' + i).textContent = `Allowed offset: ${-left} to ${600 - width - left} pixels. The full PNG stays visible.`;
+  if (!Number.isInteger(offset) || offset < -left || offset > 600 - width - left) {
+    offsetInput.setCustomValidity('This offset would crop the PNG. Reduce the offset or shrink the PNG to make room.');
+    return false;
+  }
+  // Match the renderer's whole-pixel centering, even at odd widths.
+  const centerAdjustment = Math.floor((600 - width) / 2) - (600 - width) / 2;
+  $('overlay-' + i).style.transform = `translateX(${(offset + centerAdjustment) / 6}%) scaleX(${width / 600})`;
+  return true;
+}
+for (let i = 1; i <= 4; i++) {
+  for (const field of ['scale', 'offset']) $('overlay-' + field + '-' + i).oninput = () => {
+    const fits = previewOverlay(i);
+    $('overlay-settings-message').textContent = fits
+      ? 'Unsaved PNG adjustments. Save to apply to future sheets.'
+      : `PNG ${i} does not fit. Reduce the offset or shrink its width; the preview keeps the last valid position.`;
+  };
+  $('overlay-reset-' + i).onclick = () => {
+    $('overlay-scale-' + i).value = 100;
+    $('overlay-offset-' + i).value = 0;
+    previewOverlay(i);
+    $('overlay-settings-message').textContent = `PNG ${i} reset in preview. Save to apply.`;
+  };
+}
+$('overlay-settings-form').onsubmit = async event => {
+  event.preventDefault();
+  if (busy || !overlaySettingsLoaded) return;
+  if (![1, 2, 3, 4].map(previewOverlay).every(Boolean)) {
+    $('overlay-settings-form').reportValidity();
+    return;
+  }
+  const settings = [1, 2, 3, 4].map(i => ({
+    scale_x_percent: Number($('overlay-scale-' + i).value),
+    offset_x_px: Number($('overlay-offset-' + i).value),
+  }));
+  $('overlay-settings-message').textContent = 'Saving PNG adjustments…';
+  const ok = await post('/api/overlay-settings', JSON.stringify(settings), true);
+  $('overlay-settings-message').textContent = ok
+    ? 'PNG adjustments saved for future sheets and dry runs; retained after restart.'
+    : 'Save not confirmed. ' + actionError;
+};
 $('layout-larger').onclick = () => {
   fillLayout({margin:36,top:36,bottom:180,gap:24,photo_scale:95});
   $('layout-message').textContent = 'Suggested larger margins loaded. Save to apply to the next batch.';

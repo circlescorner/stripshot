@@ -11,7 +11,7 @@ from test_stripshot import eventually
 
 
 class CalibrationRenderTests(unittest.TestCase):
-    def test_shift_clips_each_composited_strip_preserves_order_and_sources(self):
+    def test_shift_clips_photos_and_keeps_complete_png_preserves_order_and_sources(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             photos = {'A': [], 'B': []}
@@ -28,13 +28,15 @@ class CalibrationRenderTests(unittest.TestCase):
             paths = sum(photos.values(), []) + overlays
             before = [hashlib.sha256(p.read_bytes()).hexdigest() for p in paths]
             layout = {'margin':24,'gap':18,'top':24,'bottom':180}
-            render_sheet(photos, overlays, layout, root/'original.png')
+            render_sheet(photos, [None]*4, layout, root/'original.png')
             render_sheet(photos, overlays, layout, root/'shifted.png', [20,15,6,-2])
             with Image.open(root/'original.png') as original, Image.open(root/'shifted.png') as shifted:
                 for i, dx in enumerate([20,15,6,-2]):
-                    expected = Image.new('RGB',(600,1800),'white')
+                    expected = Image.new('RGBA',(600,1800),'white')
                     expected.paste(original.crop((i*600,0,(i+1)*600,1800)),(dx,0))
-                    self.assertEqual(expected.tobytes(),shifted.crop((i*600,0,(i+1)*600,1800)).tobytes())
+                    with Image.open(overlays[i]) as overlay:
+                        expected = Image.alpha_composite(expected, overlay)
+                    self.assertEqual(expected.convert('RGB').tobytes(),shifted.crop((i*600,0,(i+1)*600,1800)).tobytes())
             self.assertEqual(before,[hashlib.sha256(p.read_bytes()).hexdigest() for p in paths])
 
     def test_invalid_offsets_and_legacy_default(self):

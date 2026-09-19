@@ -56,7 +56,7 @@
         <label>Gap between photos (mm)<input id="layout-gap" type="number" min="0" max="30" step="0.01" required></label>
         <label>Photo size (%)<input id="layout-scale" type="number" min="50" max="100" step="1" required></label>
       </div>
-      <p class="hint">Photos shrink within their slots. Artwork stays at its original size. All four strips use these values. Active batches keep their frozen layout.</p>
+      <p class="hint">Photos shrink within their slots. Adjust PNG artwork separately below. All four strips use these photo values. Active batches keep their frozen layout.</p>
       <h3 class="order-heading">Photo order — top to bottom on each strip</h3>
       <div class="strip-grid order-grid">{% for strip in range(1,5) %}<fieldset><legend>Strip {{ strip }}</legend>
         {% for row in range(1,5) %}<label>Photo {{ row }}<select id="order-{{ strip }}-{{ row }}">
@@ -78,11 +78,11 @@
     <h2>Calibration — strip centering</h2>
     <form id="calibration-form"><div class="layout-fields">{% for i in range(1,5) %}
       <label>Strip {{ i }} offset (pixels)<input id="calibration-{{ i }}" type="number" min="-60" max="60" step="1" required></label>{% endfor %}</div>
-      <p class="hint">Positive moves right; negative moves left. Each complete photo-and-overlay strip stays clipped within its boundary. Accepted offsets: +20, +15, +6, −2 pixels. Custom offsets apply to future printed sheets and dry runs; they have not been physically qualified.</p>
+      <p class="hint">Positive moves photos right; negative moves photos left. Calibration moves the photos within each strip. PNGs use their own controls below and remain fully visible. Accepted photo offsets: +20, +15, +6, −2 pixels. Custom offsets apply to future printed sheets and dry runs; they have not been physically qualified.</p>
       <button type="submit">Save calibration for future sheets</button><button type="button" id="calibration-default">Load accepted offsets</button>
       <p id="calibration-message" class="hint" role="status"></p>
     </form>
-    <label>Whole-sheet vertical offset (pixels)<input id="calibration-y" type="number" min="-60" max="60" step="1" value="0" form="calibration-form"></label>
+    <label>Photo vertical offset (pixels)<input id="calibration-y" type="number" min="-60" max="60" step="1" value="0" form="calibration-form"></label>
     <h3>Calibration sheet &amp; caliper measurements</h3>
     <button id="calibration-prepare">Prepare calibration sheet — no print</button>
     <a id="calibration-target-link" target="_blank" rel="noopener" hidden>Preview full-resolution calibration sheet</a>
@@ -112,8 +112,20 @@
     <p class="hint">Use ← and → on the slideshow page, or its Previous/Next buttons. Settings are saved and update open slideshows automatically. Only completed local batches are shown.</p>
   </section>
   <section class="overlays"><div class="section-head"><div><p class="eyebrow">MAKE IT YOURS</p><h2>Four strips. Four signatures.</h2></div><p class="hint">600 × 1800 PNG · transparent photo areas<br>Text belongs in your artwork.</p></div>
-    <div class="strip-grid">{% for i in range(1, 5) %}<article class="strip-card"><div class="strip-art"><img src="/overlays/{{ i }}.png" alt="Strip {{ i }} overlay preview" id="overlay-{{ i }}"></div><div class="strip-meta"><h3>Strip 0{{ i }}</h3><span id="saved-order-{{ i }}">{{ 'A' ~ (i*2-1) }} · {{ 'B' ~ (i*2-1) }} · {{ 'A' ~ (i*2) }} · {{ 'B' ~ (i*2) }}</span></div><label class="upload" for="file-{{ i }}">Change PNG<input id="file-{{ i }}" type="file" accept="image/png" data-strip="{{ i }}"></label></article>{% endfor %}</div>
-    <p class="hint">Changes apply to the next batch. Each batch keeps its own copy of the artwork.</p>
+    <form id="overlay-settings-form">
+      <div class="strip-grid">{% for i in range(1, 5) %}<article class="strip-card"><div class="strip-art"><div class="overlay-canvas"><img src="/overlays/{{ i }}.png" alt="Strip {{ i }} overlay preview" id="overlay-{{ i }}"></div></div><div class="strip-meta"><h3>Strip 0{{ i }}</h3><span id="saved-order-{{ i }}">{{ 'A' ~ (i*2-1) }} · {{ 'B' ~ (i*2-1) }} · {{ 'A' ~ (i*2) }} · {{ 'B' ~ (i*2) }}</span></div><label class="upload" for="file-{{ i }}">Change PNG<input id="file-{{ i }}" type="file" accept="image/png" data-strip="{{ i }}"></label>
+        <div class="overlay-fields">
+          <label for="overlay-scale-{{ i }}">Horizontal scale (%) — PNG {{ i }}</label><input id="overlay-scale-{{ i }}" type="number" min="10" max="100" step="0.1" value="100" required>
+          <label for="overlay-offset-{{ i }}">Horizontal offset (pixels) — PNG {{ i }}</label><input id="overlay-offset-{{ i }}" type="number" min="-600" max="600" step="1" value="0" required>
+          <p id="overlay-fit-{{ i }}" class="hint">At 100% width, offset must be 0. Shrink to make room to move.</p>
+          <button type="button" id="overlay-reset-{{ i }}">Reset PNG {{ i }} position &amp; scale</button>
+        </div>
+      </article>{% endfor %}</div>
+      <p class="hint">The complete PNG is always kept. Each PNG scales from its center; height stays unchanged. Width can be 10–100%. Positive offsets move right, negative left (300 pixels = 1 inch). Shrink the PNG to make room to move it. Values that would put an edge outside the strip cannot be saved. Calibration moves photos only, so it cannot crop your PNG.</p>
+      <p class="hint">Thumbnails preview your PNG edits. Save adjustments before rendering a dry run to see the finished sheet. Changes are retained after restart and apply to future batches; active batches keep their frozen artwork settings.</p>
+      <button type="submit" id="overlay-save" class="primary" disabled>Save PNG adjustments</button>
+      <p id="overlay-settings-message" class="hint" role="status"></p>
+    </form>
   </section>
   <section class="bottom-grid"><article class="panel last"><p class="eyebrow">THE LAST KEEPSAKE</p><h2 id="last-title">Your first sheet is next.</h2><p id="last-detail" class="hint">Completed sheets appear here.</p><img id="last-preview" hidden alt="Last rendered four-strip sheet"></article><article class="panel print"><p class="eyebrow">OUTPUT</p><h2>One sheet.<br>Four memories.</h2><div class="print-spec"><span>6 × 8 INCH SHEET</span><span>4 × 2 × 6 STRIPS</span><span>300 DPI</span></div>{% if software %}<p id="printing-mode" role="status">Checking printing mode…</p><button id="printing-toggle" type="button" disabled>Enable live printing</button><p class="hint">Live printing sends one sheet for each new completed session. Dry run saves photos and sheets without printing. Change between sessions; switching sends no job and does not reprint saved sessions. This choice lasts until the kiosk stops; startup uses the launch configuration.</p><p id="printing-message" class="hint" role="status"></p>{% endif %}<p id="printer-status" class="hint">Checking print configuration…</p><p id="printer-remaining" role="status"><strong>Prints remaining on roll: checking…</strong></p><p id="printer-media" class="hint"></p><p id="printer-reported" class="hint"></p><p class="hint">“Submitted” means CUPS accepted the job. Check the printer for physical completion.</p></article></section>
   <footer><span>STRIPSHOT / MADE TO KEEP</span><span>All camera files are kept.</span></footer>

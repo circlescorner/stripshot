@@ -1,5 +1,6 @@
 """Four alternating-camera strips on an 8 x 6 inch, 300 DPI sheet."""
 import io
+import math
 from pathlib import Path
 from PIL import Image, ImageOps
 from storage import atomic_bytes
@@ -7,6 +8,40 @@ from storage import atomic_bytes
 STRIP = (600, 1800)
 SHEET = (2400, 1800)
 DEFAULT_PHOTO_ORDER = [[f"{c}{n}" for n in (i * 2 + 1, i * 2 + 2) for c in ("A", "B")] for i in range(4)]
+
+
+def default_overlay_settings():
+    return [{'scale_x_percent': 100, 'offset_x_px': 0} for _ in range(4)]
+
+
+def validate_overlay_settings(settings):
+    if not isinstance(settings, list) or len(settings) != 4:
+        raise ValueError('PNG settings need four strips')
+    for strip in settings:
+        if not isinstance(strip, dict) or set(strip) != {'scale_x_percent', 'offset_x_px'}:
+            raise ValueError('Each PNG needs scale_x_percent and offset_x_px')
+        scale, offset = strip['scale_x_percent'], strip['offset_x_px']
+        if type(scale) not in (int, float) or not math.isfinite(scale) or not 10 <= scale <= 100:
+            raise ValueError('PNG horizontal scale must be between 10 and 100 percent so the full PNG fits')
+        if type(offset) is not int or not -600 <= offset <= 600:
+            raise ValueError('PNG horizontal offset must be a whole number between -600 and 600 pixels')
+        width = int(STRIP[0] * scale / 100 + 0.5)
+        left = (STRIP[0] - width) // 2
+        if not -left <= offset <= STRIP[0] - width - left:
+            raise ValueError(f'PNG offset must be between {-left} and {STRIP[0] - width - left} pixels '
+                             f'at {scale}% width; shrink the PNG to make room. PNGs are never cropped')
+
+
+def position_overlay(overlay, settings):
+    """Resize the entire PNG horizontally and place it wholly inside its strip."""
+    validate_overlay_settings([settings] * 4)
+    width = int(STRIP[0] * settings['scale_x_percent'] / 100 + 0.5)
+    artwork = overlay.convert('RGBA')
+    if width != STRIP[0]:
+        artwork = artwork.resize((width, STRIP[1]), Image.Resampling.LANCZOS)
+    positioned = Image.new('RGBA', STRIP)
+    positioned.paste(artwork, ((STRIP[0] - width) // 2 + settings['offset_x_px'], 0))
+    return positioned
 
 
 def validate_strip_offsets(offsets):
@@ -71,8 +106,11 @@ def normalize_overlay(content):
         return buf.getvalue()
 
 
-def render_sheet(photos, overlays, layout, output, strip_offsets_px=None, sheet_offset_y_px=0):
+def render_sheet(photos, overlays, layout, output, strip_offsets_px=None, sheet_offset_y_px=0,
+                 overlay_settings=None):
     validate_layout(layout)
+    artwork_settings = default_overlay_settings() if overlay_settings is None else overlay_settings
+    validate_overlay_settings(artwork_settings)
     offsets = [0, 0, 0, 0] if strip_offsets_px is None else strip_offsets_px
     validate_strip_offsets(offsets)
     validate_vertical_offset(sheet_offset_y_px)
@@ -99,16 +137,16 @@ def render_sheet(photos, overlays, layout, output, strip_offsets_px=None, sheet_
                 photo = photo.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
             strip.paste(photo, (layout['margin'] + (width - scaled_width) // 2,
                                layout['top'] + row * (height + layout['gap']) + (height - scaled_height) // 2))
+        # Calibrate the photos before placing artwork. PNG edges must never be
+        # cut off by either horizontal or vertical printer calibration.
+        calibrated = Image.new('RGBA', STRIP, 'white')
+        calibrated.paste(strip, (offsets[index], sheet_offset_y_px))
         if overlays[index] is not None:
             with Image.open(overlays[index]) as overlay:
                 if overlay.size != STRIP:
                     raise ValueError('Overlay has incorrect dimensions')
-                strip = Image.alpha_composite(strip, overlay.convert('RGBA'))
-        # Translate photos and artwork together, clipped within this strip.
-        # Never let calibration spill content into its neighbor.
-        calibrated = Image.new('RGB', STRIP, 'white')
-        calibrated.paste(strip.convert('RGB'), (offsets[index], sheet_offset_y_px))
-        sheet.paste(calibrated, (index * 600, 0))
+                calibrated = Image.alpha_composite(calibrated, position_overlay(overlay, artwork_settings[index]))
+        sheet.paste(calibrated.convert('RGB'), (index * 600, 0))
     buf = io.BytesIO()
     sheet.save(buf, format='PNG', dpi=(300, 300))
     atomic_bytes(output, buf.getvalue())
