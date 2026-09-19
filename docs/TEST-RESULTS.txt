@@ -161,5 +161,5 @@ spacebar, display, resilient-loop, monitor-recovery, browser-controls.
 
 Read-only CUPS: DNP_DS40 supplies reported 150 prints remaining, 75%, 6x8 (A5).
 Browser: isolated read-only operator page displayed count, media, percentage and
-last driver-report timestamp. No camera workers were started. Preview stopped.
+last driver-report timestamp. No camera workers were started. Browser tab closed.
 No physical capture, print, live kiosk restart or merge performed.
