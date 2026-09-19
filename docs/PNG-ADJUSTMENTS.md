@@ -36,5 +36,12 @@ batches, old manifests, dry-run rendering, authentication and failed saves.
 An isolated browser preview with no camera workers verified independent edits,
 Save, reload persistence, rejection of a cropping offset, and a completed dry-run
 sheet. Its browser console had no errors and the preview server was stopped.
-No physical capture or print was performed for this update. The live kiosk has
-not yet been restarted to load this backend change.
+No physical capture or print was performed for this update. Both GitHub CI runs
+for code commit `2affe13` passed Python 3.10/3.12 and all five Node suites.
+
+After explicit user approval, the idle kiosk was cleanly restarted and verified on
+port 8090. Live printing remained enabled, the last batch stayed unchanged, and all
+147 existing data files were byte-identical. The operator page includes all eight
+PNG fields; both cameras returned decoded 640×424 JPEG previews at about 15 FPS.
+Saved calibration was preserved (X: 27, 18, 9, -1; Y: 4). PNG settings start at
+100% width and zero offset. Reload Operator to load the controls.
