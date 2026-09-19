@@ -11,6 +11,7 @@ def validate_preview_fps(value, allow_disabled=True):
 def load_config(path):
     path = Path(path).resolve()
     cfg = json.loads(path.read_text())
+    cfg['_config_path'] = str(path)
     cfg.setdefault('data_dir', 'data')
     cfg['data_dir'] = str((path.parent / cfg['data_dir']).resolve())
     cfg.setdefault('camera_mode', 'events')
@@ -61,7 +62,8 @@ def load_config(path):
         raise ValueError('Printer options must be simple key/value pairs')
     if any(k.lower() in ('copies', 'number-up', 'page-ranges') for k in options):
         raise ValueError('Copies, number-up and page-ranges cannot be overridden')
-    from render import validate_layout, validate_strip_offsets
+    from render import validate_layout, validate_strip_offsets, validate_vertical_offset
     validate_layout(cfg['layout'])
     validate_strip_offsets(cfg['printer']['strip_offsets_px'])
+    validate_vertical_offset(cfg['printer'].get('sheet_offset_y_px',0))
     return cfg

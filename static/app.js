@@ -48,6 +48,7 @@ async function refresh() {
     }
     if (!extrasLoaded) {
       state.calibration.strip_offsets_px.forEach((value,i)=>{ $('calibration-'+(i+1)).value=value; });
+      $('calibration-y').value=state.calibration.sheet_offset_y_px ?? 0;
       $('countdown-seconds').value=state.countdown_seconds;
       $('slideshow-seconds').value=state.slideshow.seconds;
       $('slideshow-source').value=state.slideshow.source;
@@ -182,10 +183,10 @@ if ($('preview-form')) $('preview-form').onsubmit = async event => {
   $('preview-message').textContent = ok ? 'Saved. Both previews now use this target; retained after restart.' : 'Not saved. ' + actionError;
 };
 
-$('calibration-default').onclick=()=>{[20,15,6,-2].forEach((v,i)=>{$('calibration-'+(i+1)).value=v;});$('calibration-message').textContent='Accepted offsets loaded. Save to apply.';};
+$('calibration-default').onclick=()=>{[20,15,6,-2].forEach((v,i)=>{$('calibration-'+(i+1)).value=v;});$('calibration-y').value=0;$('calibration-message').textContent='Accepted offsets loaded. Save to apply.';};
 $('calibration-form').onsubmit=async event=>{
   event.preventDefault();
-  const ok=await post('/api/calibration',JSON.stringify({strip_offsets_px:[1,2,3,4].map(i=>Number($('calibration-'+i).value))}),true);
+  const ok=await post('/api/calibration',JSON.stringify({strip_offsets_px:[1,2,3,4].map(i=>Number($('calibration-'+i).value)),sheet_offset_y_px:Number($('calibration-y').value)}),true);
   $('calibration-message').textContent=ok?'Saved for future sheets and dry runs. Active batch unchanged.':'Not saved. '+actionError;
 };
 $('session-form').onsubmit=async event=>{

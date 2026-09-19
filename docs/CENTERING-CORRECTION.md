@@ -31,3 +31,6 @@ DS40 profile; new batches freeze it and old batches retain their original settin
 operation and final uploaded artwork remain unqualified.
 Application printing defaults to disabled; KIOSK.md documents explicit qualified
 opt-in. No draft PR merge is authorized.
+
+
+September 19 software update: see [storage, calibration and display recovery](STORAGE-CALIBRATION-RECOVERY.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.

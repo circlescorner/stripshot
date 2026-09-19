@@ -252,3 +252,5 @@ may deliver less than the requested rate. Change only between batches.
 [Operator preview and slideshow](docs/OPERATOR-PREVIEW-AND-SLIDESHOW.md) documents the
 paper-free rerender button, visible strip calibration, configurable slideshow with
 arrow keys/shuffle, and session-aware monitor messages with a real photo countdown.
+
+Operator storage, calibration-sheet/caliper controls and browser recovery are described in [the September 19 update](docs/STORAGE-CALIBRATION-RECOVERY.md). Main-data migration requires a stopped owner; extra-copy settings apply to future batches.

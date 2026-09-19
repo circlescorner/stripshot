@@ -31,3 +31,6 @@ workers, saved-frame response headers, configuration bounds, busy-batch rejectio
 failed-save preservation, and operator authentication/CSRF. Node Spacebar regression
 and both JavaScript syntax checks passed. An attempted browser check outlasted the
 self-terminating demo server, so no new visual browser verification is claimed.
+
+
+September 19 software update: see [storage, calibration and display recovery](STORAGE-CALIBRATION-RECOVERY.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.

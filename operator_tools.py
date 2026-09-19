@@ -4,7 +4,7 @@ import hashlib
 import json
 import time
 import uuid
-from render import render_sheet, validate_strip_offsets
+from render import render_sheet, validate_strip_offsets, validate_vertical_offset
 from storage import atomic_bytes, save_json
 from qualification import validate_software_printing
 
@@ -36,10 +36,14 @@ class OperatorTools:
             self.countdown_seconds = candidate['countdown_seconds']
 
     def apply_calibration(self, candidate, persist=True):
-        if not isinstance(candidate,dict) or set(candidate) != {'strip_offsets_px'}:
+        if not isinstance(candidate,dict) or not {'strip_offsets_px'} <= set(candidate) or set(candidate)-{'strip_offsets_px','sheet_offset_y_px'}:
             raise ValueError('Calibration needs four strip offsets')
         validate_strip_offsets(candidate['strip_offsets_px'])
         printer = copy.deepcopy(self.config['printer'])
+        vertical=candidate.get('sheet_offset_y_px',printer.get('sheet_offset_y_px',0))
+        validate_vertical_offset(vertical)
+        printer['sheet_offset_y_px']=vertical
+        candidate={**candidate,'sheet_offset_y_px':vertical}
         printer.update(strip_offsets_px=list(candidate['strip_offsets_px']),
                        operator_calibration_authorized=True)
         if self.software:
@@ -60,6 +64,7 @@ class OperatorTools:
                 raise ValueError('Complete one photo session first; dry run reuses its sixteen saved originals')
             layout = copy.deepcopy(self.layout)
             offsets = list(self.config['printer'].get('strip_offsets_px',[0]*4))
+            vertical = self.config['printer'].get('sheet_offset_y_px',0)
         source = self.root / 'batches' / batch['id']
         photos = {c:[source/f'{c}{n:02d}.jpg' for n in range(1,9)] for c in ('A','B')}
         hashes = {}
@@ -78,9 +83,9 @@ class OperatorTools:
             target=output/f'overlay{n}.png'
             if path.exists(): atomic_bytes(target,path.read_bytes()); overlays.append(target)
             else: overlays.append(None)
-        render_sheet(photos,overlays,layout,output/'sheet.png',strip_offsets_px=offsets)
+        render_sheet(photos,overlays,layout,output/'sheet.png',strip_offsets_px=offsets,sheet_offset_y_px=vertical)
         save_json(output/'manifest.json',{'id':ident,'source_batch':batch['id'],
-                  'created_at':time.time(),'layout':layout,'strip_offsets_px':offsets,
+                  'created_at':time.time(),'layout':layout,'strip_offsets_px':offsets,'sheet_offset_y_px':vertical,
                   'original_hashes':hashes,'overlays':[p.name if p else None for p in overlays],
                   'status':'render_only_no_capture_no_print'})
         return {'id':ident,'url':'/dry-runs/'+ident}
@@ -90,6 +95,7 @@ class OperatorTools:
             current=self.state['current']
             active=bool(current)
             return {'active':active, 'phase':self.phase,
+                    'previews':{c:{**w.preview_status(),'failed':bool(w.failure)} for c,w in self.workers.items()},
                     'round':self.round_number if active else None,
                     'countdown_remaining':max(0,self.next_photo-time.monotonic())
                       if active and self.phase == 'capturing' and self.next_photo is not None else None}

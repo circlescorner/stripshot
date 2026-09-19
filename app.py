@@ -16,7 +16,7 @@ from werkzeug.exceptions import HTTPException
 from batch import Engine
 from camera import DemoCamera, discover, live_cameras
 from config import load_config
-from storage import ProcessLock
+from storage_location import StorageLease
 from preview import register_preview
 
 
@@ -143,6 +143,22 @@ def create_app(engine):
         engine.request('slideshow_settings',request.get_json()).result(timeout=130)
         return jsonify(ok=True)
 
+    @app.get('/api/calibration-target')
+    def calibration_target():
+        return jsonify(engine.calibration_print.latest())
+
+    @app.get('/calibration-targets/<ident>/sheet.png')
+    def calibration_sheet(ident):
+        return send_file(engine.calibration_print.directory(ident)/'sheet.png',mimetype='image/png')
+
+    @app.post('/api/operator-tools/<action>')
+    def operator_tools_action(action):
+        if action not in ('storage_settings','storage_location','storage_cancel','storage_retry','storage_export',
+                          'storage_retention','calibration_prepare','calibration_print',
+                          'calibration_measure','calibration_acknowledge'):
+            abort(404)
+        return jsonify(engine.request(action,request.get_json(silent=True) or {}).result(timeout=130))
+
     @app.post('/api/calibration')
     def calibration():
         engine.request('calibration',request.get_json()).result(timeout=130)
@@ -255,7 +271,7 @@ def main():
     def terminate(*_):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, terminate)
-    lock = ProcessLock(config['data_dir'])
+    lock = StorageLease(config)
     engine = None
     try:
         adapters = ({c: DemoCamera(Path(config['data_dir']) / 'demo-cards', c) for c in ('A', 'B')}

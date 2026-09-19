@@ -13,3 +13,6 @@ Next: one supervised Space-triggered batch through the complete hardware path.
 Prior camera and printer component tests need no repeats. Preserve the new batch
 manifest/job ID and confirm four centered strips, moving previews and ready state.
 Uncertain shutter or CUPS outcomes never retry automatically.
+
+
+September 19 software update: see [storage, calibration and display recovery](STORAGE-CALIBRATION-RECOVERY.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.

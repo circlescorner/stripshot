@@ -31,14 +31,21 @@ def save_json(path, value):
 
 
 class ProcessLock:
-    def __init__(self, directory):
+    def __init__(self, directory, allow_redirect=False):
         Path(directory).mkdir(parents=True, exist_ok=True)
+        if not allow_redirect and (Path(directory) / 'storage-redirect.json').exists():
+            raise RuntimeError('This storage folder was migrated; use the current launcher and destination')
+        if (Path(directory) / 'storage-incomplete.json').exists() and not allow_redirect:
+            raise RuntimeError('Storage migration is incomplete; preserve both data trees')
         self.stream = open(Path(directory) / 'stripshot.lock', 'a+')
         try:
             fcntl.flock(self.stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             self.stream.close()
             raise RuntimeError('Stripshot is already using this data directory') from None
+        if not allow_redirect and any((Path(directory)/name).exists() for name in ('storage-redirect.json','storage-incomplete.json')):
+            self.stream.close()
+            raise RuntimeError('Storage was migrated or is incomplete; use the current launcher')
 
     def close(self):
         self.stream.close()

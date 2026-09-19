@@ -20,3 +20,5 @@ jobs:
           node-version: 22
       - run: node tests/spacebar.test.cjs
       - run: node tests/display.test.cjs
+      - run: node tests/resilient-loop.test.cjs
+      - run: node tests/monitor-recovery.test.cjs

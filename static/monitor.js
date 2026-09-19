@@ -13,42 +13,52 @@ function paint() {
   frame.hidden=!visible;
   document.getElementById('wedding').hidden=!visible;
   message.hidden=visible;
+  const detail=document.getElementById('recovery-detail'), health=state?.previews?.[label];
+  if(detail)detail.textContent=visible||state?.active?'':!state?'Reconnecting to server…':health?.failed?'Camera failure — check operator':health?.frame_age_seconds!==null&&health?.frame_age_seconds<2?'Recovering browser display…':'Waiting for camera preview';
   if(!visible) message.textContent=window.StripshotMonitorText(label,state,remaining);
 }
-async function refresh() {
-  const started = performance.now();
-  let failed = false;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 1500);
-  let previous=null;
+const frames=new window.StripshotResilientLoop(async ({signal,current,started})=>{
+  let candidate=null;
+  // Revoke even when image.decode() never settles. Never reuse the display
+  // image for decoding: a timed-out decode cannot later mutate its src.
+  const cleanup=()=>{if(candidate){URL.revokeObjectURL(candidate);candidate=null;}};
+  signal.addEventListener('abort',cleanup,{once:true});
   try {
-    const response = await fetch(`/api/preview/${encodeURIComponent(label)}.jpg`, {cache:'no-store', signal:controller.signal});
-    const requested = Number(response.headers.get('X-Preview-FPS'));
-    if (Number.isFinite(requested) && requested >= 1 && requested <= 15) targetFps = requested;
-    if (!response.ok) throw new Error('Preview unavailable');
-    const blob = await response.blob();
-    previous=objectURL;
-    objectURL=URL.createObjectURL(blob);
+    const response=await fetch(`/api/preview/${encodeURIComponent(label)}.jpg`,{cache:'no-store',signal});
+    if(!response.ok)throw new Error('Preview unavailable');
+    const requested=Number(response.headers.get('X-Preview-FPS'));
+    const blob=await response.blob();
+    if(!current())return 500;
+    candidate=URL.createObjectURL(blob);
+    const decoded=new Image();decoded.src=candidate;
+    await decoded.decode();
+    if(!current())return 500;
+    if(Number.isFinite(requested)&&requested>=1&&requested<=15)targetFps=requested;
+    const old=objectURL;objectURL=candidate;candidate=null;
     frame.src=objectURL;
-    await frame.decode();
-    lastGood=performance.now(); frameAvailable=true;
-  } catch { failed=true; frameAvailable=false; }
-  finally {
-    if(previous) URL.revokeObjectURL(previous);
-    clearTimeout(timer); paint();
-    setTimeout(refresh, failed ? 500 : Math.max(10, 1000 / targetFps - (performance.now() - started)));
+    if(old)URL.revokeObjectURL(old);
+    lastGood=performance.now();frameAvailable=true;paint();
+    return Math.max(10,1000/targetFps-(performance.now()-started));
+  } catch {if(current()){frameAvailable=false;paint();}return 500;}
+  finally {cleanup();signal.removeEventListener('abort',cleanup);}
+},{deadline:2000,delay:500});
+const sessions=new window.StripshotResilientLoop(async ({signal,current})=>{
+  const response=await fetch('/api/monitor/status',{cache:'no-store',signal});
+  if(!response.ok)throw new Error('Session status unavailable');
+  const state=await response.json();
+  if(current()){
+    session=state;sessionAt=performance.now();
+    countdownUntil=session.countdown_remaining===null?null:sessionAt+session.countdown_remaining*1000;
+    paint();
   }
-}
-async function refreshSession() {
-  const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),1500);
-  try {
-    const response=await fetch('/api/monitor/status',{cache:'no-store',signal:controller.signal});
-    if(!response.ok) throw new Error('Session status unavailable');
-    session=await response.json(); sessionAt=performance.now();
-    countdownUntil=session.countdown_remaining===null ? null : sessionAt+session.countdown_remaining*1000;
-  } catch { /* Stale session status expires; never pretend to know a next shutter. */ }
-  finally {clearTimeout(timer);paint();setTimeout(refreshSession,400);}
-}
+  return 400;
+},{deadline:2000,delay:500});
+function wake(){frames.wake();sessions.wake();}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)wake();});
+window.addEventListener('online',wake);
+window.addEventListener('pageshow',wake);
+window.addEventListener('pagehide',()=>{frames.stop();sessions.stop();if(objectURL){URL.revokeObjectURL(objectURL);objectURL=null;}frameAvailable=false;});
+window.addEventListener('pageshow',()=>{frames.start();sessions.start();});
 setInterval(paint,100);
 document.getElementById('fullscreen').onclick = () => document.documentElement.requestFullscreen().catch(() => {});
-refresh();refreshSession();
+frames.start();sessions.start();

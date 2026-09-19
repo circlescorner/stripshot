@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/style.css">
   <script defer src="/static/spacebar.js"></script>
   <script defer src="/static/app.js"></script>
+<script defer src="/static/operator-storage-calibration.js"></script>
 <script defer src="/static/keep-awake.js"></script>
 </head>
 <body>
@@ -60,6 +61,30 @@
     </form>
     <p class="hint" id="uptime"></p><p class="hint" id="wake-status"></p>
   </section>
+  <section class="panel" aria-label="Photo storage"><h2>Photo storage</h2>
+    <p id="storage-root" class="hint"></p>
+    <p>Recovery storage always keeps originals, finished sheets, artwork, manifests, hashes and held batches. No automatic deletion.</p>
+    <form id="storage-location-form"><label>Permanent main storage folder (new absolute path)<input id="storage-location" type="text" placeholder="/home/m/Pictures/Stripshot" required></label><button>Schedule whole-data migration at next stopped startup</button><button type="button" id="storage-cancel">Cancel pending migration</button></form>
+    <p id="storage-migration-status" role="status"></p>
+    <p class="hint">This migrates all existing recovery data after the current owner exits and locks are acquired. It does not switch a running session or create an independent empty owner. The old tree is retained. Stop and verify all owning processes have exited before restarting.</p>
+    <form id="storage-form"><h3>Additional copies for future sessions</h3>
+      <label><input id="storage-enabled" type="checkbox"> Enable additional backup/export copies</label>
+      <label>Existing destination folder (absolute path)<input id="storage-folder" type="text"></label>
+      <label>Session name prefix<input id="storage-name" pattern="[A-Za-z0-9_-]{1,48}" maxlength="48" required></label>
+      <label>Organization<select id="storage-grouping"><option value="date">UTC date / name + unique batch ID</option><option value="batch">Batches / name + unique batch ID</option></select></label>
+      <label><input id="storage-originals" type="checkbox"> Original JPEG/MPO bytes</label>
+      <label><input id="storage-sheet" type="checkbox"> Finished PNG sheets</label>
+      <label><input id="storage-strips" type="checkbox"> Individual JPEG strips</label>
+      <label>JPEG strip quality (60–100)<input id="storage-quality" type="number" min="60" max="100" required></label>
+      <button>Save for future sessions</button>
+    </form>
+    <p class="hint">Names never replace recovery batch IDs. Copies run only for completed batches; active batches keep their frozen copy settings. A changed or missing destination fails visibly. Source files are retained.</p>
+    <button id="storage-export">Copy last completed batch using these saved settings</button><button id="storage-retry">Retry oldest failed additional copy</button>
+    <p id="storage-status" role="status"></p>
+    <h3>Manual retention review</h3><p class="hint">Record what to keep or archive. This review does not delete files. Held batches and recovery evidence stay protected; use verified backups and stopped maintenance for any later manual cleanup.</p>
+    <form id="retention-form"><label>Review note<input id="retention-note" maxlength="1000" required></label><button>Record review — retain all files</button></form>
+    <p id="storage-message" role="status"></p>
+  </section>
   <section class="panel" aria-label="Calibration">
     <h2>Calibration — strip centering</h2>
     <form id="calibration-form"><div class="layout-fields">{% for i in range(1,5) %}
@@ -68,6 +93,21 @@
       <button type="submit">Save calibration for future sheets</button><button type="button" id="calibration-default">Load accepted offsets</button>
       <p id="calibration-message" class="hint" role="status"></p>
     </form>
+    <label>Whole-sheet vertical offset (pixels)<input id="calibration-y" type="number" min="-60" max="60" step="1" value="0" form="calibration-form"></label>
+    <h3>Calibration sheet &amp; caliper measurements</h3>
+    <button id="calibration-prepare">Prepare calibration sheet — no print</button>
+    <a id="calibration-target-link" target="_blank" rel="noopener" hidden>Preview full-resolution calibration sheet</a>
+    <button id="calibration-print">Print calibration sheet</button>
+    <button id="calibration-acknowledge">Acknowledge uncertain calibration submission — no retry</button>
+    <p id="calibration-target-status" role="status"></p>
+    <p class="hint">Print sends one sheet with the displayed target ID and its frozen settings. Never automatically retried. Check CUPS and paper after an uncertain submission before acknowledging.</p>
+    <form id="caliper-form"><p>On the identified printed sheet, keep strips in left-to-right order. At the middle gauge, measure from each cut edge to the center of its nearby vertical line, in millimeters. On strip 1, measure top/bottom cut edges to the center of the horizontal lines. Check the square is about 20 × 20 mm; this correction translates content, never rescales it.</p>
+      <div class="layout-fields">{% for i in range(1,5) %}<fieldset><legend>Strip {{ i }}</legend><label>Left (mm)<input id="measure-left-{{ i }}" type="number" min="0" max="50" step="0.01" required></label><label>Right (mm)<input id="measure-right-{{ i }}" type="number" min="0" max="50" step="0.01" required></label></fieldset>{% endfor %}</div>
+      <label>Strip 1 top (mm)<input id="measure-top" type="number" min="0" max="50" step="0.01" required></label><label>Strip 1 bottom (mm)<input id="measure-bottom" type="number" min="0" max="50" step="0.01" required></label>
+      <button>Calculate proposed corrections — do not apply</button>
+    </form>
+    <p class="hint">New X = printed X + (right − left) × 300 / 25.4 / 2. Positive moves right. New Y = printed Y + (bottom − top) × 300 / 25.4 / 2. Positive moves down. Round the final value to the nearest pixel; exact halves round to even. Values outside ±60 pixels are rejected.</p>
+    <pre id="caliper-proposal"></pre><button id="caliper-apply" disabled>Apply displayed proposal to future sheets</button><p id="caliper-message" role="status"></p>
     <h3>Dry run — preview without paper</h3><p class="hint">Reuses the last completed sixteen photos with your currently saved overlays, margins, scale, order and calibration. Save your changes first. No camera capture and no printer job.</p>
     <button id="dry-run">Render dry run in a new window</button><a id="dry-run-link" target="_blank" rel="noopener" hidden>Open finished preview</a><p id="dry-run-message" class="hint" role="status"></p>
   </section>

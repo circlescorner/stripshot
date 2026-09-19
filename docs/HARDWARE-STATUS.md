@@ -93,3 +93,6 @@ Dry rerender, visible custom calibration, slideshow, and countdown/session messa
 were added with simulated/browser verification. No new physical print or exposure
 was issued. Custom calibration offsets are explicitly operator-selected and have
 not been physically requalified; the accepted offsets remain available and default.
+
+
+September 19 software update: see [storage, calibration and display recovery](STORAGE-CALIBRATION-RECOVERY.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.

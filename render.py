@@ -16,6 +16,11 @@ def validate_strip_offsets(offsets):
         raise ValueError('strip_offsets_px must contain four integers between -60 and 60')
 
 
+def validate_vertical_offset(value):
+    if type(value) is not int or abs(value)>60:
+        raise ValueError('Vertical offset must be a whole number between -60 and 60 pixels')
+
+
 def validate_layout(layout):
     required = {'margin', 'gap', 'top', 'bottom'}
     if not isinstance(layout, dict) or not required <= set(layout) or set(layout) - required - {'photo_scale', 'photo_order'}:
@@ -66,10 +71,11 @@ def normalize_overlay(content):
         return buf.getvalue()
 
 
-def render_sheet(photos, overlays, layout, output, strip_offsets_px=None):
+def render_sheet(photos, overlays, layout, output, strip_offsets_px=None, sheet_offset_y_px=0):
     validate_layout(layout)
     offsets = [0, 0, 0, 0] if strip_offsets_px is None else strip_offsets_px
     validate_strip_offsets(offsets)
+    validate_vertical_offset(sheet_offset_y_px)
     if set(photos) != {'A', 'B'} or any(len(photos[c]) != 8 for c in photos):
         raise ValueError('Exactly eight JPEGs per camera are required')
     for files in photos.values():
@@ -101,7 +107,7 @@ def render_sheet(photos, overlays, layout, output, strip_offsets_px=None):
         # Translate photos and artwork together, clipped within this strip.
         # Never let calibration spill content into its neighbor.
         calibrated = Image.new('RGB', STRIP, 'white')
-        calibrated.paste(strip.convert('RGB'), (offsets[index], 0))
+        calibrated.paste(strip.convert('RGB'), (offsets[index], sheet_offset_y_px))
         sheet.paste(calibrated, (index * 600, 0))
     buf = io.BytesIO()
     sheet.save(buf, format='PNG', dpi=(300, 300))
