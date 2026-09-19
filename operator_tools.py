@@ -87,6 +87,7 @@ class OperatorTools:
         save_json(output/'manifest.json',{'id':ident,'source_batch':batch['id'],
                   'created_at':time.time(),'layout':layout,'strip_offsets_px':offsets,'sheet_offset_y_px':vertical,
                   'original_hashes':hashes,'overlays':[p.name if p else None for p in overlays],
+                  'calibration_fit':True,
                   'status':'render_only_no_capture_no_print'})
         return {'id':ident,'url':'/dry-runs/'+ident}
 

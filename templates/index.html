@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/static/style.css">
   <script defer src="/static/spacebar.js"></script>
   <script defer src="/static/app.js"></script>
-<script defer src="/static/operator-storage-calibration.js"></script>
+<script defer src="/static/operator-calibration.js"></script>
 <script defer src="/static/keep-awake.js"></script>
 </head>
 <body>
@@ -61,37 +61,17 @@
     </form>
     <p class="hint" id="uptime"></p><p class="hint" id="wake-status"></p>
   </section>
-  <section class="panel" aria-label="Photo storage"><h2>Photo storage</h2>
-    <p id="storage-root" class="hint"></p>
-    <p>Recovery storage always keeps originals, finished sheets, artwork, manifests, hashes and held batches. No automatic deletion.</p>
-    <form id="storage-location-form"><label>Permanent main storage folder (new absolute path)<input id="storage-location" type="text" placeholder="/home/m/Pictures/Stripshot" required></label><button>Schedule whole-data migration at next stopped startup</button><button type="button" id="storage-cancel">Cancel pending migration</button></form>
-    <p id="storage-migration-status" role="status"></p>
-    <p class="hint">This migrates all existing recovery data after the current owner exits and locks are acquired. It does not switch a running session or create an independent empty owner. The old tree is retained. Stop and verify all owning processes have exited before restarting.</p>
-    <form id="storage-form"><h3>Additional copies for future sessions</h3>
-      <label><input id="storage-enabled" type="checkbox"> Enable additional backup/export copies</label>
-      <label>Existing destination folder (absolute path)<input id="storage-folder" type="text"></label>
-      <label>Session name prefix<input id="storage-name" pattern="[A-Za-z0-9_-]{1,48}" maxlength="48" required></label>
-      <label>Organization<select id="storage-grouping"><option value="date">UTC date / name + unique batch ID</option><option value="batch">Batches / name + unique batch ID</option></select></label>
-      <label><input id="storage-originals" type="checkbox"> Original JPEG/MPO bytes</label>
-      <label><input id="storage-sheet" type="checkbox"> Finished PNG sheets</label>
-      <label><input id="storage-strips" type="checkbox"> Individual JPEG strips</label>
-      <label>JPEG strip quality (60–100)<input id="storage-quality" type="number" min="60" max="100" required></label>
-      <button>Save for future sessions</button>
-    </form>
-    <p class="hint">Names never replace recovery batch IDs. Copies run only for completed batches; active batches keep their frozen copy settings. A changed or missing destination fails visibly. Source files are retained.</p>
-    <button id="storage-export">Copy last completed batch using these saved settings</button><button id="storage-retry">Retry oldest failed additional copy</button>
-    <p id="storage-status" role="status"></p>
-    <h3>Manual retention review</h3><p class="hint">Record what to keep or archive. This review does not delete files. Held batches and recovery evidence stay protected; use verified backups and stopped maintenance for any later manual cleanup.</p>
-    <form id="retention-form"><label>Review note<input id="retention-note" maxlength="1000" required></label><button>Record review — retain all files</button></form>
-    <p id="storage-message" role="status"></p>
+  <section class="panel" aria-label="Saved photos"><h2>Saved photos</h2>
+    <p id="photo-folder"></p>
+    <p><a href="/photos" target="_blank" rel="noopener">View saved photos and finished sheets</a></p>
   </section>
   <section class="panel" aria-label="Calibration">
     <h2>Calibration — strip centering</h2>
     <form id="calibration-form"><div class="layout-fields">{% for i in range(1,5) %}
       <label>Strip {{ i }} offset (pixels)<input id="calibration-{{ i }}" type="number" min="-60" max="60" step="1" required></label>{% endfor %}</div>
-      <p class="hint">Positive moves right; negative moves left. Each complete photo-and-overlay strip stays clipped within its boundary. Accepted offsets: +20, +15, +6, −2 pixels. Custom offsets apply to future printed sheets and dry runs; they have not been physically qualified.</p>
+      <p class="hint">Positive moves right; negative moves left. Each strip’s width and height are enlarged only as needed to cover its boundary after centering, then cropped. Photos and artwork stay together; no padding is added. Accepted offsets: +20, +15, +6, −2 pixels. Custom offsets apply to future printed sheets and dry runs; they have not been physically qualified.</p>
       <button type="submit">Save calibration for future sheets</button><button type="button" id="calibration-default">Load accepted offsets</button>
-      <p id="calibration-message" class="hint" role="status"></p>
+      <p id="calibration-fit" class="hint"></p><p id="calibration-message" class="hint" role="status"></p>
     </form>
     <label>Whole-sheet vertical offset (pixels)<input id="calibration-y" type="number" min="-60" max="60" step="1" value="0" form="calibration-form"></label>
     <h3>Calibration sheet &amp; caliper measurements</h3>

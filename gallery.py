@@ -57,13 +57,16 @@ class Gallery:
                 photos = [e for e in photos if e['batch_id'] == latest]
             return [dict(e) for e in photos]
 
-    def image(self, batch_id, name):
+    def original(self, batch_id, name):
         if not BATCH_ID.fullmatch(batch_id) or not (PHOTO_NAME.fullmatch(name) or name == 'sheet.png'):
             raise FileNotFoundError('Unknown gallery image')
         allowed = self.catalog('sheets' if name == 'sheet.png' else 'all')
         if not any(e['id'] == batch_id + '/' + name for e in allowed):
             raise FileNotFoundError('Not a completed gallery image')
-        original = self.root / 'batches' / batch_id / name
+        return self.root / 'batches' / batch_id / name
+
+    def image(self, batch_id, name):
+        original = self.original(batch_id, name)
         # Browser-sized derived file; retain the untouched full original.
         stat = original.stat()
         cache = self.root / 'gallery-cache' / batch_id / f'{name}-{stat.st_size}-{stat.st_mtime_ns}.jpg'

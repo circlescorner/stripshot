@@ -1,28 +1,26 @@
-# September 19 operator update verification
+# Saved-photo access and calibration fitting
 
-Implemented storage naming/organization and optional additional copies, manual
-retention review with no deletion, stopped main-data migration, explicit calibration
-sheet printing with durable intent, caliper correction proposals and separate apply,
-and automatic browser frame/session recovery.
+The storage-management system has been removed. The operator page now shows the
+saved-photo folder and one link to browse completed originals and finished sheets.
+No migration, destination, backup-job or retention system remains in the application.
 
-Validation:
-- Full Python suite: 112 tests passed in 72.326 seconds.
-- Final focused storage/calibration suite: 10 tests passed in 0.945 seconds,
-  including the later inconsistent-ancestral-alias fail-closed regression.
-- Four Node suites passed: keyboard guard, display/slideshow, resilient loop, and
-  monitor recovery integration (stalled fetch/decode, failed requests, stale results,
-  visibility/pageshow recovery and URL cleanup).
-- Fresh operator-page browser inspection: storage/calibration sections and existing
-  controls visible; accepted defaults load; no JavaScript errors.
-- Mixed cached-template/new-script behavior was observed on a long-running test
-  process, reinforcing the required controlled restart plus page reload on deployment.
-- Temporary render-only servers at 8095 and 8096 stopped and confirmed unreachable.
-  Existing 8090 live kiosk and 8092 simulated service were left running.
+Calibration now scales each axis only as needed and crops to fit, preserving the
+saved center shifts without added color or blank padding. Width and height scale
+independently to avoid unnecessary vertical cropping. Larger than 3% enlargement
+was explicitly selected to keep the saved shifts. Existing photos/artwork, stored
+calibration settings and already-frozen batches remain unchanged.
 
-No physical shutter, print, camera-worker restart, live data migration, SD deletion,
-or merge was performed. Existing accepted hardware evidence is preserved.
+Verification:
+- Full Python suite: 110 tests passed in 68.525 seconds.
+- Final fitting/calibration checks: 9 tests passed in 5.940 seconds, including the
+  added horizontal-fit regression that protects bottom artwork from vertical cropping.
+- All four Node suites passed.
+- Operator page and read-only photo browser checked in an isolated render-only demo;
+  no JavaScript errors. The port 8096 demo was stopped and confirmed unreachable.
+- Separate preview rendered from existing local originals and current artwork using
+  X=[26,16,6,-2], Y=2. Width increases are [8.67%,5.33%,2.00%,0.67%], height 0.22%.
+  The year remains visible. Source and overlay SHA-256 hashes stayed unchanged.
 
-The permanent destination is not yet selected. Main migration must wait for a
-verified stopped owner. Retention controls record reviews; they do not delete data.
-New custom calibration, abrupt native failure, endurance and OS lockdown remain
-unqualified. See STORAGE-CALIBRATION-RECOVERY.md and DATA-MIGRATION.md.
+No physical capture or print, live-owner restart, data relocation or merge occurred.
+This is a rendering verification, not a new physical printer qualification.
+A controlled application restart and page reload load the updated package.

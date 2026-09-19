@@ -83,7 +83,6 @@ hardware gaps are native disconnect/reconnect, abrupt failure, endurance and fin
 monitor/deployment setup. New branding, independent photo ordering, guarded serial
 reconnection and HTTP polling changes are documented in WEDDING-RECOVERY-UPDATE.md.
 These changes received software/browser checks only; no new physical test was run.
-DATA-MIGRATION.md plans a stopped, locked, checksum-verified migration from /tmp.
 
 ## Operator previews and slideshow
 
@@ -95,4 +94,4 @@ was issued. Custom calibration offsets are explicitly operator-selected and have
 not been physically requalified; the accepted offsets remain available and default.
 
 
-September 19 software update: see [storage, calibration and display recovery](STORAGE-CALIBRATION-RECOVERY.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.
+September 19 software update: see [calibration and display recovery](CALIBRATION-AND-LIVE-VIEW.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.

@@ -83,10 +83,9 @@ save, rendered sheet with overlay/full-resolution link, shuffled slideshow timin
 left/right keys and a genuine scheduled countdown. No physical exposure or print
 was performed; the previously successful hardware runs were not repeated.
 
-For migration, preserve operator-calibration.json, operator-session.json,
-operator-slideshow.json, operator-preview.json, operator-layout.json and dry-runs
-alongside the original state/batches/overlays. gallery-cache is derived and can be
-regenerated. Follow DATA-MIGRATION.md; do not copy inconsistent live state.
+Settings remain in operator-calibration.json, operator-session.json,
+operator-slideshow.json, operator-preview.json and operator-layout.json. Dry runs
+remain under dry-runs/, with original sessions under batches/.
 
 
-September 19 software update: see [storage, calibration and display recovery](STORAGE-CALIBRATION-RECOVERY.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.
+September 19 software update: see [calibration and display recovery](CALIBRATION-AND-LIVE-VIEW.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.

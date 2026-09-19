@@ -15,4 +15,4 @@ manifest/job ID and confirm four centered strips, moving previews and ready stat
 Uncertain shutter or CUPS outcomes never retry automatically.
 
 
-September 19 software update: see [storage, calibration and display recovery](STORAGE-CALIBRATION-RECOVERY.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.
+September 19 software update: see [calibration and display recovery](CALIBRATION-AND-LIVE-VIEW.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.

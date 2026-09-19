@@ -19,9 +19,7 @@ from config import validate_preview_fps
 from gallery import Gallery
 from display_settings import DisplaySettings
 from operator_tools import OperatorTools
-from photo_storage import PhotoStorage
 from calibration_print import CalibrationPrint
-from storage_location import schedule_location
 
 LOG = logging.getLogger(__name__)
 
@@ -29,6 +27,7 @@ LOG = logging.getLogger(__name__)
 class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
     def __init__(self, config, adapters):
         self.config = config
+        config['printer']['calibration_fit'] = True
         self.software = config['camera_mode'] == 'software'
         if self.software:
             validate_software_printing(config['printer'], config['demo'])
@@ -51,7 +50,6 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
         self.initialize_display()
         self.initialize_operator_tools()
         self.gallery = Gallery(self.root)
-        self.photo_storage = PhotoStorage(self.root)
         self.calibration_print = CalibrationPrint(self)
         self.started_at = time.monotonic()
         self.lock = threading.RLock()
@@ -99,7 +97,6 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
         save_json(self.path, self.state)
 
     def start(self):
-        self.photo_storage.start(self.state["last"])
         for worker in self.workers.values():
             worker.start()
         self.thread.start()
@@ -115,16 +112,12 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
             if worker.ident is not None:
                 worker.join(timeout=2)
 
-        self.photo_storage.stop()
-
     def status(self):
         with self.lock:
             return {'phase': self.phase, 'error': self.error,
                     'slideshow': copy.deepcopy(self.display),
                     'calibration': {'strip_offsets_px':list(self.config['printer'].get('strip_offsets_px',[0]*4)), 'sheet_offset_y_px':self.config['printer'].get('sheet_offset_y_px',0)},
-                    'photo_storage': self.photo_storage.status(),
                     'data_dir': str(self.root),
-                    'storage_migration':json.loads((self.root/'storage-migration.json').read_text()) if (self.root/'storage-migration.json').exists() else None,
                     'countdown_seconds':self.countdown_seconds,
                     'preview_fps': self.config.get('preview_fps', 0),
                     'layout': copy.deepcopy(self.layout),
@@ -213,7 +206,6 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
                 'id': batch_id, 'stage': 'preparing', 'created_at': time.time(),
                 'files': {c: self.state['pending'][c][:8] for c in ('A', 'B')},
                 'countdown_seconds':self.countdown_seconds,
-                'storage':copy.deepcopy(self.photo_storage.settings),
                 'layout': copy.deepcopy(self.layout),
                 'printer': copy.deepcopy(self.config['printer']), 'overlays': overlays,
             }
@@ -262,7 +254,8 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
         sheet = directory / 'sheet.png'
         render_sheet(photos, overlays, batch['layout'], sheet,
                      strip_offsets_px=batch['printer'].get('strip_offsets_px', [0, 0, 0, 0]),
-                     sheet_offset_y_px=batch['printer'].get('sheet_offset_y_px',0))
+                     sheet_offset_y_px=batch['printer'].get('sheet_offset_y_px',0),
+                     fit_calibration=batch['printer'].get('calibration_fit',False))
         with self.lock:
             if any(w.failure for w in self.workers.values()):
                 raise RuntimeError('Camera failed during preparation; restart after checking connections')
@@ -285,21 +278,9 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
             self.state['current'] = None
             self.save()
             save_json(directory / 'manifest.json', completed)
-            try: self.photo_storage.enqueue(completed)
-            except Exception as exc: self.photo_storage.notice='Cannot queue extra copies: '+str(exc)
             self.phase, self.error = 'watching', None
 
     def action(self, action, *args):
-        if action == 'storage_settings': return self.photo_storage.save(args[0])
-        if action == 'storage_location': return schedule_location(self.root,args[0]['destination'])
-        if action == 'storage_cancel':
-            save_json(self.root/'storage-migration.json',{'cancelled':True})
-            return {'message':'Pending migration cancelled; no photo data changed'}
-        if action == 'storage_retry': return self.photo_storage.retry(args[0]['id'])
-        if action == 'storage_export':
-            if not self.state['last']: raise ValueError('No completed batch available')
-            return self.photo_storage.enqueue(self.state['last'],manual=True)
-        if action == 'storage_retention': return self.photo_storage.review(args[0])
         if action == 'calibration_prepare': return self.calibration_print.prepare()
         if action == 'calibration_print': return self.calibration_print.print_once(args[0]['id'])
         if action == 'calibration_measure': return self.calibration_print.measure(args[0])

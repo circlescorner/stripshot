@@ -242,8 +242,7 @@ operator intervention. The integrated physical Space-to-print run is now confirm
 Guest/monitor branding, independently selectable strip positions, serial-verified
 reconnect, and nonblocking dashboard polling are described in
 [the update notes](docs/WEDDING-RECOVERY-UPDATE.md). Preferred alternating A/B order
-remains the default; duplicate/omitted selections are rejected. Before unattended
-deployment, follow the [stopped-state migration plan](docs/DATA-MIGRATION.md).
+remains the default; duplicate/omitted selections are rejected.
 
 [Live preview speed](docs/PREVIEW-SPEED.md) can now be saved in the operator dashboard
 (1–15 FPS target for both cameras, with actual FPS shown). Start with 5 FPS; hardware
@@ -253,4 +252,5 @@ may deliver less than the requested rate. Change only between batches.
 paper-free rerender button, visible strip calibration, configurable slideshow with
 arrow keys/shuffle, and session-aware monitor messages with a real photo countdown.
 
-Operator storage, calibration-sheet/caliper controls and browser recovery are described in [the September 19 update](docs/STORAGE-CALIBRATION-RECOVERY.md). Main-data migration requires a stopped owner; extra-copy settings apply to future batches.
+The operator page shows the saved-photo folder and a read-only photo/sheet browser.
+[Calibration and live view](docs/CALIBRATION-AND-LIVE-VIEW.md) describes caliper controls, edge-filled corrections and automatic display recovery.

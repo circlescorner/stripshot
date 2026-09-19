@@ -11,7 +11,6 @@ def validate_preview_fps(value, allow_disabled=True):
 def load_config(path):
     path = Path(path).resolve()
     cfg = json.loads(path.read_text())
-    cfg['_config_path'] = str(path)
     cfg.setdefault('data_dir', 'data')
     cfg['data_dir'] = str((path.parent / cfg['data_dir']).resolve())
     cfg.setdefault('camera_mode', 'events')

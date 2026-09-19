@@ -16,7 +16,7 @@ from werkzeug.exceptions import HTTPException
 from batch import Engine
 from camera import DemoCamera, discover, live_cameras
 from config import load_config
-from storage_location import StorageLease
+from storage import ProcessLock
 from preview import register_preview
 
 
@@ -143,6 +143,24 @@ def create_app(engine):
         engine.request('slideshow_settings',request.get_json()).result(timeout=130)
         return jsonify(ok=True)
 
+    @app.get('/photos')
+    def saved_photos():
+        photos = engine.gallery.catalog('all')
+        sheets = engine.gallery.catalog('sheets')
+        batches = {}
+        for item in photos + sheets:
+            batches.setdefault(item['batch_id'], []).append(item)
+        return render_template('photos.html', folder=str(engine.root / 'batches'),
+                               batches=list(reversed(list(batches.items()))))
+
+    @app.get('/photos/<batch_id>/<name>')
+    def saved_original(batch_id, name):
+        try:
+            path = engine.gallery.original(batch_id, name)
+        except (OSError, ValueError):
+            abort(404)
+        return send_file(path, mimetype='image/png' if name == 'sheet.png' else 'image/jpeg')
+
     @app.get('/api/calibration-target')
     def calibration_target():
         return jsonify(engine.calibration_print.latest())
@@ -153,8 +171,7 @@ def create_app(engine):
 
     @app.post('/api/operator-tools/<action>')
     def operator_tools_action(action):
-        if action not in ('storage_settings','storage_location','storage_cancel','storage_retry','storage_export',
-                          'storage_retention','calibration_prepare','calibration_print',
+        if action not in ('calibration_prepare','calibration_print',
                           'calibration_measure','calibration_acknowledge'):
             abort(404)
         return jsonify(engine.request(action,request.get_json(silent=True) or {}).result(timeout=130))
@@ -271,7 +288,7 @@ def main():
     def terminate(*_):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, terminate)
-    lock = StorageLease(config)
+    lock = ProcessLock(config['data_dir'])
     engine = None
     try:
         adapters = ({c: DemoCamera(Path(config['data_dir']) / 'demo-cards', c) for c in ('A', 'B')}

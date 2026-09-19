@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stripshot · Saved photos</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/photos.css"></head>
+<body><main><header><a href="/operator">← Operator</a></header><h1>Saved photos</h1>
+<p class="folder">Folder: {{ folder }}</p><p>Completed sessions below. Click a photo or sheet to view its full-resolution file.</p>
+{% for batch_id,items in batches %}<section class="panel"><h2>{{ batch_id }}</h2><div class="photo-grid">
+{% for item in items %}{% set name=item.id.split('/')[-1] %}<a href="/photos/{{ batch_id }}/{{ name }}" target="_blank" rel="noopener"><img src="{{ item.url }}" alt="{{ name }}" loading="lazy"><span>{{ name }}</span></a>{% endfor %}
+</div></section>{% else %}<p>No completed sessions yet.</p>{% endfor %}
+<p>Files from unfinished sessions remain in their session folders.</p></main></body></html>

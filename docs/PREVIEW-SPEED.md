@@ -9,7 +9,7 @@ The current 3 FPS default is preserved until the operator saves a change.
 
 The setting applies without another restart, only while the cameras are ready
 with no active batch. It is saved atomically in operator-preview.json in the data
-directory and restored at startup/reconnect. Include this file in migration/backups.
+directory and restored at startup/reconnect. The setting remains in the current data folder.
 The control requires operator authentication and its CSRF token in kiosk mode.
 Configurations with preview disabled must enable it at startup before live adjustment.
 
@@ -33,4 +33,4 @@ and both JavaScript syntax checks passed. An attempted browser check outlasted t
 self-terminating demo server, so no new visual browser verification is claimed.
 
 
-September 19 software update: see [storage, calibration and display recovery](STORAGE-CALIBRATION-RECOVERY.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.
+September 19 software update: see [calibration and display recovery](CALIBRATION-AND-LIVE-VIEW.md). Existing hardware results are preserved; this update used simulated/mocked verification only and did not repeat physical capture or printing.
