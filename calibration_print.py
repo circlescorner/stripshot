@@ -73,7 +73,7 @@ class CalibrationPrint:
         self.idle();directory=self.directory(ident);record=json.loads((directory/'manifest.json').read_text())
         if record['status']!='ready':raise ValueError('This target already has a print attempt; it will not be resubmitted')
         if not self.engine.config['printer']['enabled'] or not record['printer']['enabled']:
-            raise ValueError('Restart with --live-printing and prepare a new target to enable a physical calibration print')
+            raise ValueError('Enable live printing in the operator Output panel and prepare a new target to enable a physical calibration print')
         validate_software_printing(self.engine.config['printer'],self.engine.config['demo'])
         validate_software_printing(record['printer'],self.engine.config['demo'])
         if hashlib.sha256((directory/'sheet.png').read_bytes()).hexdigest()!=record['sheet_sha256']:

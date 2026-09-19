@@ -3,7 +3,7 @@ const fs=require('node:fs'),vm=require('node:vm');
 const requestJson=require('../static/request-json.js');
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
-const elements=()=>new Proxy({}, {get:(target,id)=>target[id]??=( {value:10,disabled:false,hidden:false,textContent:'',addEventListener(type,fn){this[type]=fn;}} )});
+const elements=()=>new Proxy({}, {get:(target,id)=>target[id]??=( {value:10,disabled:false,hidden:false,textContent:'',replaceChildren(){},append(){},addEventListener(type,fn){this[type]=fn;}} )});
 
 async function requests(){
  const original=global.fetch;
@@ -75,6 +75,40 @@ async function operator(){
  assert.equal(nodes.capture.disabled,true);
 }
 
+async function printing(){
+ const nodes=elements(),calls=[];
+ const state={printing_enabled:false,printing_change_available:true,demo:false,phase:'watching',
+  calibration:{strip_offsets_px:[26,16,6,-2]},slideshow:{},previews:{A:{},B:{}},
+  cameras:{A:'connected',B:'connected'},counts:{A:0,B:0},capture_mode:'software'};
+ let failStatus=false;
+ const context={document:{getElementById:id=>nodes[id],querySelector:()=>({content:'token'}),
+  querySelectorAll:()=>[],createTextNode:()=>({}),createElement:()=>({})},
+  window:{StripshotSpace:{bind(){}},StripshotRequestJson:async(url,options)=>{
+   if(url==='/api/status'){if(failStatus)throw Error('Disconnected');return state;}
+   if(url==='/api/printer')return {};
+   const d=deferred();calls.push({url,options,...d});return d.promise;
+  }},setTimeout(){}};
+ vm.createContext(context);vm.runInContext(fs.readFileSync('static/app.js','utf8'),context);
+ await turn();assert.equal(nodes['printing-toggle'].disabled,false);
+ assert.equal(nodes['printing-toggle'].textContent,'Enable live printing');
+ const enable=nodes['printing-toggle'].onclick();await turn();
+ assert.equal(calls[0].url,'/api/printing-settings');
+ assert.deepEqual(JSON.parse(calls[0].options.body),{enabled:true});
+ await nodes['printing-toggle'].onclick();assert.equal(calls.length,1,'no duplicate mode change');
+ state.printing_enabled=true;calls[0].resolve({printing_enabled:true});await enable;
+ assert.equal(nodes['printing-toggle'].textContent,'Use dry run');
+ const disable=nodes['printing-toggle'].onclick();await turn();
+ assert.deepEqual(JSON.parse(calls[1].options.body),{enabled:false});
+ calls[1].reject(Error('Timed out'));await disable;
+ assert.equal(calls.length,2,'uncertain change is not automatically retried');
+ assert.match(nodes['printing-message'].textContent,/not confirmed/);
+ state.printing_change_available=false;await vm.runInContext('refresh()',context);
+ assert.equal(nodes['printing-toggle'].disabled,true);
+ await nodes['printing-toggle'].onclick();assert.equal(calls.length,2);
+ failStatus=true;await vm.runInContext('refresh()',context);
+ assert.equal(nodes['printing-toggle'].disabled,true,'disconnect disables mode change');
+}
+
 async function calibration(){
  const nodes=elements(),gets=[],posts=[];
  const context={$:id=>nodes[id],busy:false,actionError:'Failed',confirm:()=>true,setTimeout(){},
@@ -102,4 +136,4 @@ async function calibration(){
  old.resolve(target('second'));await oldRefresh;
  assert.match(nodes['calibration-target-status'].textContent,/third/,'stale polling cannot replace a newly prepared target');
 }
-(async()=>{await requests();await kiosk();await operator();await calibration();console.log('JSON deadlines, kiosk uncertainty/stale status, calibration proposal invalidation: PASS');})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{await requests();await kiosk();await operator();await printing();await calibration();console.log('JSON deadlines, kiosk uncertainty/stale status, calibration proposal invalidation: PASS');})().catch(error=>{console.error(error);process.exitCode=1;});

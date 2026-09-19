@@ -2,6 +2,7 @@
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="stripshot-token"]').content;
 let busy = false;
+let printingEnabled = null;
 let lastPreview = '';
 let actionError = '';
 let layoutLoaded = false;
@@ -26,6 +27,12 @@ async function refresh() {
   refreshing = true;
   try {
     const state = await requestJson('/api/status');
+    if ($('printing-toggle')) {
+      printingEnabled = state.printing_enabled;
+      $('printing-toggle').disabled = busy || !state.printing_change_available;
+      $('printing-toggle').textContent = printingEnabled ? 'Use dry run' : 'Enable live printing';
+      $('printing-mode').textContent = state.demo ? 'Demo — printing unavailable' : printingEnabled ? 'Live printing enabled' : 'Dry run — no printing';
+    }
     if ($('photo-folder')) $('photo-folder').textContent = 'Files are stored in: ' + state.data_dir + '/batches/';
     if (!layoutLoaded && state.layout) {
       fillLayout(state.layout);
@@ -95,6 +102,8 @@ async function refresh() {
       }
     }
   } catch (error) {
+    printingEnabled = null;
+    if ($('printing-toggle')) $('printing-toggle').disabled = true;
     $('phase').textContent = 'Dashboard disconnected';
     $('phase-detail').textContent = 'Reconnecting… Check the running application if this persists.';
     $('reset').disabled = true;
@@ -118,6 +127,16 @@ async function post(url, body, json = false) {
     await refresh();
   }
 }
+if ($('printing-toggle')) $('printing-toggle').onclick = async () => {
+  if (busy || $('printing-toggle').disabled || printingEnabled === null) return;
+  const enabled = !printingEnabled;
+  $('printing-message').textContent = 'Changing printing mode…';
+  const result = await post('/api/printing-settings', JSON.stringify({enabled}), true);
+  $('printing-message').textContent = result
+    ? (result.printing_enabled ? 'Live printing enabled for new sessions.' : 'Dry run enabled. New sessions will not print.')
+    : 'Change not confirmed. Check the current mode before starting a session. ' + actionError;
+  if (result) await printerStatus();
+};
 $('reset').onclick = () => { if (confirm('Ignore the pending photos and count the next 8 from each camera? No files will be deleted.')) post('/api/reset'); };
 if ($('capture')) $('capture').onclick = () => post('/api/capture');
 $('reconnect-cameras').onclick = () => post('/api/reconnect');

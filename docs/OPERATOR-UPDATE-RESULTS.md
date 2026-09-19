@@ -57,3 +57,29 @@ including timeout recovery, wake and stop. All five Node suites passed. Both cam
 pages displayed changing decoded 640×424 frames after a reload, with no new console
 errors. This static correction needs only a camera-page reload, not a live restart.
 No shutter, print, reconnect, calibration or artwork action was performed.
+
+## Operator printing switch
+
+In the operator Output panel, choose **Enable live printing** or **Use dry run**
+between sessions. Live mode sends one sheet for each new completed session; dry
+run saves originals and the finished sheet without submitting a printer job.
+Changing modes itself never captures, prints, or reprints old sessions. The current
+mode appears in the Output panel, top badge, and guest dry-run indicator.
+
+Only the authenticated operator can change this setting. Active/held batches block
+changes; demo mode and unqualified printer profiles cannot enable printing. Saved
+calibration stays intact. Existing frozen-batch and uncertain-print protections
+remain in force. The choice lasts for the current kiosk process; the desktop
+launcher still starts in dry run. Explicit --live-printing startup remains supported.
+
+Installing this backend update requires one controlled kiosk restart, followed by
+a page reload. Subsequent printing mode changes need no restart or camera reconnect.
+The mode control was tested with isolated fake cameras and mocked printing; no
+hardware shutter or print was used.
+
+Printing-switch verification: all 126 Python tests and five Node suites passed.
+The isolated browser preview switched both ways and showed the corresponding
+mode and button labels. Its server was stopped; no camera workers ran there.
+Tests cover operator/guest authorization, strict inputs, active/held states, saved
+calibration, invalid profiles, startup reset, no automatic request retries, and
+dry/live/dry sessions with exactly one mocked submission.

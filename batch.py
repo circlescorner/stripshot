@@ -133,6 +133,9 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
                     'last': ({**copy.deepcopy(self.state['last']),
                               'preview_available': (self.root / 'batches' / self.state['last']['id'] / 'preview.jpg').is_file()}
                              if self.state['last'] else None),
+                    'printing_change_available': (self.software and not self.config['demo']
+                        and self.phase == 'watching' and not self.state['current']
+                        and not any(not f.done() for f in self.capture_futures)),
                     'demo': self.config['demo'], 'printing_enabled': self.config['printer']['enabled']}
 
     def request(self, action, *args):
@@ -283,6 +286,8 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
         if action == 'calibration_print': return self.calibration_print.print_once(args[0]['id'])
         if action == 'calibration_measure': return self.calibration_print.measure(args[0])
         if action == 'calibration_acknowledge': return self.calibration_print.acknowledge(args[0]['id'])
+        if action == 'printing_settings':
+            return self.set_printing(args[0])
         if action == 'dry_run':
             return self.render_dry_run()
         if action == 'slideshow_settings':

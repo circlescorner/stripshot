@@ -56,3 +56,22 @@ If a camera page was opened before the September 19 timer fix, reload that windo
 with Ctrl+R. The corrected static script is served by the existing kiosk on 8090;
 keep its terminal running. Both live camera pages were verified displaying refreshed
 frames after reload, without restarting or reconnecting either camera.
+
+## Operator printing switch
+
+In the operator Output panel, choose **Enable live printing** or **Use dry run**
+between sessions. Live mode sends one sheet for each new completed session; dry
+run saves originals and the finished sheet without submitting a printer job.
+Changing modes itself never captures, prints, or reprints old sessions. The current
+mode appears in the Output panel, top badge, and guest dry-run indicator.
+
+Only the authenticated operator can change this setting. Active/held batches block
+changes; demo mode and unqualified printer profiles cannot enable printing. Saved
+calibration stays intact. Existing frozen-batch and uncertain-print protections
+remain in force. The choice lasts for the current kiosk process; the desktop
+launcher still starts in dry run. Explicit --live-printing startup remains supported.
+
+Installing this backend update requires one controlled kiosk restart, followed by
+a page reload. Subsequent printing mode changes need no restart or camera reconnect.
+The mode control was tested with isolated fake cameras and mocked printing; no
+hardware shutter or print was used.

@@ -186,6 +186,10 @@ def create_app(engine):
         engine.request('session_settings',request.get_json()).result(timeout=130)
         return jsonify(ok=True)
 
+    @app.post('/api/printing-settings')
+    def printing_settings():
+        return jsonify(engine.request('printing_settings', request.get_json()).result(timeout=130))
+
     @app.post('/api/dry-run')
     def dry_run():
         return jsonify(engine.request('dry_run').result(timeout=130))

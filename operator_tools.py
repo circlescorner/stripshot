@@ -55,6 +55,24 @@ class OperatorTools:
         else:
             self.config['printer'] = printer
 
+    def set_printing(self, candidate):
+        if not isinstance(candidate, dict) or set(candidate) != {'enabled'} or type(candidate['enabled']) is not bool:
+            raise ValueError('Printing setting needs enabled: true or false')
+        with self.lock:
+            if not self.software or self.config['demo']:
+                raise ValueError('Live printing requires real cameras in software capture mode')
+            if self.phase != 'watching' or self.state['current'] or any(not f.done() for f in self.capture_futures):
+                raise ValueError('Change printing only between sessions, with no active or held batch')
+            printer = copy.deepcopy(self.config['printer'])
+            printer.update(enabled=candidate['enabled'], software_print_authorized=candidate['enabled'])
+            validate_software_printing(printer, self.config['demo'])
+            # Run through the coordinator: no batch can freeze halfway through.
+            # This is a runtime choice; never rewrite startup settings or old batches.
+            from printer import Printer
+            self.config['printer'] = printer
+            self.printer = Printer(printer)
+            return {'printing_enabled': printer['enabled']}
+
     def render_dry_run(self):
         with self.lock:
             if self.state['current'] or self.phase != 'watching':
