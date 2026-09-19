@@ -4,6 +4,7 @@ USB previews and explicit software shutters share the same owning thread.
 """
 import io
 import json
+import logging
 import posixpath
 import queue
 import threading
@@ -13,6 +14,12 @@ from collections import deque
 from pathlib import Path
 from PIL import Image, ImageDraw
 from storage import atomic_bytes
+
+LOG = logging.getLogger(__name__)
+
+
+class CameraRestoreWarning(RuntimeError):
+    """Camera settings were not restored, but the native session was released."""
 
 
 def identity(folder, name, size, mtime):
@@ -251,16 +258,27 @@ class GPhotoCamera:
 
     def close(self):
         if self.camera is not None:
+            restore_error = None
             try:
                 if self.preview_started:
+                    self.stage = 'ending live view and restoring Card during cleanup'
                     try:
                         self._set('viewfinder', 0)
                     finally:
                         self._set('recordingmedia', 'Card')
                         if self._media() != 'Card':
                             raise RuntimeError('Verify recording destination on the camera')
-            finally:
-                self.camera.exit()
+            except Exception as exc:
+                restore_error = exc
+            # A setting failure after USB loss does not prove that exit failed.
+            # Conversely, never claim release if exit raises or remains blocked.
+            self.stage = 'releasing PTP session'
+            self.camera.exit()
+            self.camera = None
+            self.preview_started = False
+            self.stage = 'PTP session released'
+            if restore_error:
+                raise CameraRestoreWarning('Settings could not be restored before USB release: ' + str(restore_error))
 
 
 def discover():
@@ -392,6 +410,7 @@ class CameraWorker(threading.Thread):
         self.frame_sequence = 0
         self.frame_times = deque(maxlen=30)
         self.cleanup_error = None
+        self.cleanup_warning = None
         self.baseline_required = baseline_required
         self.stage = 'not started'
         self.rejected_frame = None
@@ -421,7 +440,10 @@ class CameraWorker(threading.Thread):
             fps = (len(times) - 1) / (times[-1] - times[0]) if len(times) > 1 else 0
             return {'frames': self.frame_sequence, 'recent_fps': round(fps, 2),
                     'frame_age_seconds': round(now - self.frame_at, 2) if self.frame_at else None,
-                    'stage': getattr(self.adapter, 'stage', self.stage)}
+                    'stage': getattr(self.adapter, 'stage', self.stage),
+                    'worker_stage': self.stage, 'worker_alive': self.is_alive(),
+                    'failure': self.failure, 'cleanup_error': self.cleanup_error,
+                    'cleanup_warning': self.cleanup_warning}
 
     def latest_frame(self):
         with self.frame_lock:
@@ -464,6 +486,7 @@ class CameraWorker(threading.Thread):
                     future = None
                 if future is not None:
                     try:
+                        self.stage = method
                         result = getattr(self.adapter, method)(*args)
                         if method == 'software_shot' and result is not None:
                             self.publish_frame(result)
@@ -473,6 +496,7 @@ class CameraWorker(threading.Thread):
                         raise
                     continue
                 if time.monotonic() >= next_preview:
+                    self.stage = 'reading preview'
                     preview_started_at = time.monotonic()
                     method = (self.adapter.keepalive_preview if self.mode == 'software' and isinstance(self.adapter, GPhotoCamera)
                               else self.adapter.preview)
@@ -481,10 +505,12 @@ class CameraWorker(threading.Thread):
                     # after USB transfer. Commands still run before previews.
                     next_preview = preview_started_at + 1 / self.preview_fps
                 if self.mode == 'events':
+                    self.stage = 'waiting for camera event'
                     item = self.adapter.event()
                     if item:
                         self.events.put((self.label, item, None))
                 elif self.mode == 'poll' and time.monotonic() >= next_poll:
+                    self.stage = 'polling SD card'
                     items = self.adapter.snapshot()
                     for item in items:
                         if key(item) not in observed:
@@ -495,6 +521,8 @@ class CameraWorker(threading.Thread):
                     self.stopping.wait(min(0.05, max(0.005, next_preview - time.monotonic())))
         except Exception as exc:
             self.failure = str(exc)
+            LOG.warning('Camera %s failed during %s (%s): %s', self.label, self.stage,
+                        getattr(self.adapter, 'stage', 'adapter operation'), exc)
             if not self.ready.done():
                 self.ready.set_exception(exc)
             self.events.put((self.label, None, self.failure))
@@ -507,8 +535,15 @@ class CameraWorker(threading.Thread):
                 except queue.Empty:
                     break
             try:
+                self.stage = 'closing camera'
                 self.adapter.close()
+            except CameraRestoreWarning as exc:
+                self.cleanup_warning = str(exc)
+                LOG.warning('Camera %s released with warning: %s', self.label, exc)
             except Exception as exc:
                 self.cleanup_error = 'Camera cleanup failed: ' + str(exc)
                 self.failure = self.failure or self.cleanup_error
                 self.events.put((self.label, None, self.cleanup_error))
+                LOG.error('Camera %s release unconfirmed: %s', self.label, exc)
+            finally:
+                self.stage = 'release unconfirmed' if self.cleanup_error else 'closed'

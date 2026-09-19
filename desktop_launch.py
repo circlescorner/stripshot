@@ -5,6 +5,7 @@ import fcntl
 import getpass
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import socket
@@ -23,6 +24,24 @@ def running(base_url):
         return isinstance(status, dict) and status.get('application') == 'stripshot' and status.get('kiosk_mode') is True
     except (OSError, ValueError, URLError):
         return False
+
+
+def occupied_port_message(base_url, port):
+    # Report listener identity only; never inspect environment/arguments or kill
+    # a process based on its port. A failed HTTP probe does not prove an orphan.
+    owners = []
+    try:
+        result = subprocess.run(['ss', '-ltnp', f'sport = :{port}'],
+                                capture_output=True, text=True, timeout=2)
+        owners = sorted(set(re.findall(r'\("([^"\n]+)",pid=(\d+),', result.stdout)))
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    identity = ', '.join(f'PID {pid} ({name})' for name, pid in owners) or 'the listener could not be identified'
+    return (f'The kiosk port {port} is already occupied; {identity}. '
+            f'The existing service did not answer as Stripshot. Open {base_url}/operator and check '
+            'the existing Stripshot terminal: it may be starting, stopping, or waiting on a camera. '
+            'If another program owns the port, resolve that conflict before starting. '
+            'No cameras were opened and no process was stopped.')
 
 
 def open_pages(base_url, profile, operator_only=False):
@@ -80,13 +99,22 @@ def main(argv=None):
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            print('Stripshot is already starting in another terminal window.', flush=True)
+            if running(base):
+                open_pages(base, profile, operator_only=True)
+            print('An existing Stripshot launch owns the desktop lock. Check its terminal and '
+                  + base + '/operator; it may be starting or stopping. No second owner started.', flush=True)
             return 0
         with socket.socket() as check:
+            # Match the server: recently closed connections in TIME_WAIT are not
+            # another listener. This never takes a port from an active listener.
+            check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
                 check.bind(('127.0.0.1', config['port']))
             except OSError:
-                raise RuntimeError('The kiosk port is already occupied. No cameras were opened.') from None
+                if running(base):
+                    open_pages(base, profile, operator_only=True)
+                    return 0
+                raise RuntimeError(occupied_port_message(base, config['port'])) from None
         if not Path(config['data_dir']).is_dir():
             raise ValueError('Saved-photo folder is missing: ' + config['data_dir'] + '. No replacement was created.')
         password = os.environ.get('STRIPSHOT_OPERATOR_PASSWORD') or getpass.getpass('Operator password (at least 12 characters): ')

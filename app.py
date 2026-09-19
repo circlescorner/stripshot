@@ -328,6 +328,16 @@ def main():
     engine = None
     server = None
     try:
+        # Reserve the socket before discovery can open either camera. The desktop
+        # probe is advisory; this is the race-free port ownership check.
+        def dispatch(environ, start_response):
+            return app(environ, start_response)
+        if args.dev_server:
+            from werkzeug.serving import make_server
+            server = make_server(config['host'], config['port'], dispatch, threaded=True)
+        else:
+            from waitress import create_server
+            server = create_server(dispatch, host=config['host'], port=config['port'], threads=4)
         adapters = ({c: DemoCamera(Path(config['data_dir']) / 'demo-cards', c) for c in ('A', 'B')}
                     if config['demo'] else live_cameras(config))
         engine = Engine(config, adapters)
@@ -343,20 +353,26 @@ def main():
                 'http://127.0.0.1:' + str(config['port']),
                 Path(args.config).resolve().parent / 'guest-browser'), daemon=True).start()
         if args.dev_server:
-            app.run(host=config['host'], port=config['port'], threaded=True, use_reloader=False)
+            server.serve_forever()
         else:
-            from waitress import create_server
-            server = create_server(app, host=config['host'], port=config['port'], threads=4)
             server.print_listen('Serving on http://{}:{}')
             server.run()
     except KeyboardInterrupt:
         pass
     finally:
-        if server is not None: server.close()
+        if server is not None:
+            if args.dev_server: server.server_close()
+            else: server.close()
         if engine is not None:
+            if engine.application_control: engine.application_control.close()
             engine.stop()
+            blockers = engine.cleanup_blockers()
+            if blockers:
+                # Retain the OS lock through process exit on failed cleanup.
+                raise RuntimeError('Shutdown incomplete: ' + '; '.join(blockers) +
+                                   '. No replacement was started; inspect this existing process before relaunching.')
+            if engine.application_control: engine.application_control.finish()
         lock.close()
-    if engine is not None: engine.application_control.finish()
 
 
 if __name__ == '__main__':

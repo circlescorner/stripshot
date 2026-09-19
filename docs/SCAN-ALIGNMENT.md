@@ -29,7 +29,8 @@ This measures the complete PNG canvas against the cut paper, not individual
 features inside the design. Millimeter margins assume the nominal 300-DPI output.
 Accuracy is limited by scanning, edge detection and printer/cutter repeatability;
 a successful software analysis is not a guarantee of a perfect physical print.
-No real scanner or printer has yet been used to qualify this feature.
+A supplied 300-DPI reference scan has been analyzed successfully; a complete
+apply/print/rescan cycle has not yet been physically qualified.
 
 Preparing, uploading, calculating and applying do not print or take photographs.
 Physical reference printing uses the existing one-attempt ledger and explicit
@@ -64,3 +65,17 @@ and reject wrong targets, cropped images, stale proposals, changed settings and
 active sessions. An isolated browser check uploaded all four synthetic scans,
 calculated and reviewed the correction, and applied it without console errors.
 No physical capture, print, or real-data alignment changes were made during testing.
+
+## Bright backing and misleading crop errors
+
+A supplied scan included all four cut edges on yellow backing. The old grayscale
+threshold merged that bright backing with the paper and incorrectly reported a
+cropped edge. Detection now requires brightness in every RGB channel so saturated
+backing is separated from white paper. The supplied original passes marker-fit,
+rectangle, size and skew checks; its annotated outline follows all four paper
+edges. Synthetic rotated yellow, cyan and magenta backing scans also recover
+known offsets. White backing and actual cropping still fail with wording that
+explains both possibilities. Dark matte backing remains the preferred setup.
+
+This analysis was performed offline using the saved reference markers. It did not
+upload to the running booth, apply a correction, print, or modify saved scan data.

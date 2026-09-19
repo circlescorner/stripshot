@@ -25,13 +25,13 @@ class ScanAlignmentTests(unittest.TestCase):
         save_json(directory/'manifest.json', record)
         return record, directory
 
-    def scan(self, directory, strip, dx=24, dy=4, rotation=0, scale=1, cropped=False):
+    def scan(self, directory, strip, dx=24, dy=4, rotation=0, scale=1, cropped=False, backing=(25,25,25)):
         with Image.open(directory/'sheet.png') as sheet:
             artwork = sheet.crop(((strip-1)*600, 0, strip*600, 1800))
         paper = Image.new('RGB', (600, 1800), 'white'); paper.paste(artwork, (dx, dy))
-        scan = Image.new('RGB', (1000, 2200), (25, 25, 25)); scan.paste(paper, (200, 200))
+        scan = Image.new('RGB', (1000, 2200), backing); scan.paste(paper, (200, 200))
         if cropped: scan = paper
-        if rotation: scan = scan.rotate(rotation, Image.Resampling.BICUBIC, expand=True, fillcolor=(25, 25, 25))
+        if rotation: scan = scan.rotate(rotation, Image.Resampling.BICUBIC, expand=True, fillcolor=backing)
         if scale != 1: scan = scan.resize((int(scan.width*scale), int(scan.height*scale)), Image.Resampling.LANCZOS)
         output = io.BytesIO(); scan.save(output, 'PNG'); return output.getvalue()
 
@@ -59,6 +59,17 @@ class ScanAlignmentTests(unittest.TestCase):
         old = self.scan(directory, 1); newer, _ = self.target(e)
         with self.assertRaises(ValueError): analyze_scan(old, newer['scan_markers'][0])
         with self.assertRaises(ValueError): e.action('scan_upload', target['id'], 1, old)
+
+    def test_bright_coloured_backing_is_not_mistaken_for_cropped_paper(self):
+        e, _ = self.engine(start=False); target, directory = self.target(e)
+        for backing in ((255,230,40), (50,240,240), (240,50,240)):
+            measurement, _ = analyze_scan(self.scan(directory, 1, rotation=1.2, backing=backing), target['scan_markers'][0])
+            for actual, expected in zip(measurement['paper_bounds_px'], (-24,-4,576,1796)):
+                self.assertAlmostEqual(actual, expected, delta=2)
+        with self.assertRaisesRegex(ValueError, 'backing may blend'):
+            analyze_scan(self.scan(directory, 1, backing='white'), target['scan_markers'][0])
+        with self.assertRaisesRegex(ValueError, 'may be cropped'):
+            analyze_scan(self.scan(directory, 1, cropped=True), target['scan_markers'][0])
 
     def test_proposal_fits_full_png_to_cut_edges_and_apply_changes_only_png(self):
         e, cards = self.engine(start=False); target, directory = self.uploaded(e, rotations=True)

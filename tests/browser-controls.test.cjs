@@ -210,6 +210,12 @@ async function applicationControls(){
  assert.match(nodes['application-message'].textContent,/not confirmed/);
  vm.runInContext("updateApplicationControls({instance_id:'new',application_control_available:true,application_control_action:null})",context);
  assert.equal(nodes['application-stop'].disabled,false);assert.equal(posts.length,2);
+ vm.runInContext("applicationPending=null; updateApplicationControls({instance_id:'new',application_control_available:false,application_control_action:'restart',application_control_status:{state:'blocked',message:'Camera A: releasing PTP session. This instance still owns the booth.'}})",context);
+ assert.match(nodes['application-message'].textContent,/Camera A/);
+ assert.equal(nodes['application-restart'].disabled,true,'reload recovers the pending shutdown');
+ vm.runInContext('applicationPending.started=Date.now()-31000; applicationDisconnected()',context);
+ assert.match(nodes['application-message'].textContent,/existing Stripshot terminal/);
+ assert.equal(posts.length,2,'blocked or slow shutdown never retries');
 }
 
 async function calibration(){

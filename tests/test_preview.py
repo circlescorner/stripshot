@@ -123,10 +123,12 @@ class PreviewTests(unittest.TestCase):
         camera.preview_started = True
         camera._media = MagicMock(return_value='Card')
         camera._set = MagicMock(side_effect=[RuntimeError('end failed'), None])
+        native = camera.camera
         with self.assertRaisesRegex(RuntimeError, 'end failed'):
             camera.close()
         self.assertEqual(camera._set.call_args.args, ('recordingmedia', 'Card'))
-        camera.camera.exit.assert_called_once()
+        native.exit.assert_called_once()
+        self.assertIsNone(camera.camera)
 
     def test_stale_failed_and_stopped_frames_are_not_served(self):
         worker = CameraWorker('A', MagicMock(), queue.Queue(), preview_fps=3)

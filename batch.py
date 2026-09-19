@@ -104,16 +104,28 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
             worker.start()
         self.thread.start()
 
-    def stop(self):
+    def stop(self, timeout=59):
         self.stop_event.set()
+        deadline = time.monotonic() + timeout
         # Let an in-flight batch reach a durable boundary before ending workers.
         if self.thread.ident is not None:
-            self.thread.join(timeout=55)
+            self.thread.join(timeout=max(0, min(55, deadline-time.monotonic())))
+        if self.thread.is_alive():
+            return  # Keep workers until the coordinator reaches a durable boundary.
         for worker in self.workers.values():
             worker.stopping.set()
         for worker in self.workers.values():
             if worker.ident is not None:
-                worker.join(timeout=2)
+                worker.join(timeout=max(0, min(2, deadline-time.monotonic())))
+
+    def cleanup_blockers(self):
+        blockers = ['Coordinator is still finishing an operation'] if self.thread.is_alive() else []
+        for label, worker in self.workers.items():
+            if worker.is_alive():
+                blockers.append(f'Camera {label}: {worker.stage} ({getattr(worker.adapter, "stage", "operation pending")})')
+            elif worker.cleanup_error:
+                blockers.append(f'Camera {label}: {worker.cleanup_error}')
+        return blockers
 
     def status(self):
         with self.lock:
@@ -121,6 +133,7 @@ class Engine(OperatorTools, DisplaySettings, CameraRecovery, SoftwareWorkflow):
                     'instance_id': self.instance_id,
                     'application_control_available': bool(self.application_control and self.application_control.available()),
                     'application_control_action': self.application_control.action if self.application_control else None,
+                    'application_control_status': self.application_control.status() if self.application_control else None,
                     'slideshow': copy.deepcopy(self.display),
                     'calibration': {'strip_offsets_px':list(self.config['printer'].get('strip_offsets_px',[0]*4)), 'sheet_offset_y_px':self.config['printer'].get('sheet_offset_y_px',0)},
                     'data_dir': str(self.root),

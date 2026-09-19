@@ -83,7 +83,10 @@ def analyze_scan(content, markers):
     residual = float(np.max(np.linalg.norm((design @ affine.T - scanned) @ np.linalg.inv(linear).T, axis=1)))
     if residual > 1.5:
         raise ValueError('Reference marks are not consistent enough. Keep the strip flat and rescan without perspective correction')
-    mask = (gray > 175).astype(np.uint8)*255
+    # Bright saturated backing (especially yellow) can be as bright as paper in
+    # grayscale. Require brightness in every channel to separate white paper
+    # from coloured backing without guessing boundaries from the marker positions.
+    mask = (pixels.min(axis=2) > 175).astype(np.uint8)*255
     contours, _ = cv.findContours(mask, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
     candidates = [c for c in contours if all(cv.pointPolygonTest(c, tuple(map(float, p)), False) >= 0 for p in scanned)]
     if len(candidates) != 1:
@@ -91,7 +94,7 @@ def analyze_scan(content, markers):
     contour = candidates[0]
     x, y, w, h = cv.boundingRect(contour)
     if x < 8 or y < 8 or x+w > image.width-8 or y+h > image.height-8:
-        raise ValueError('Scan cuts off a paper edge. Disable automatic cropping and leave dark space around the entire strip')
+        raise ValueError('Paper cannot be separated from the scan border. The scan may be cropped, or the backing may blend into the paper. Leave visible dark matte backing around all four edges and disable automatic cropping')
     rectangle = cv.minAreaRect(contour)
     box = cv.boxPoints(rectangle)
     if cv.contourArea(contour)/(rectangle[1][0]*rectangle[1][1]) < .985:

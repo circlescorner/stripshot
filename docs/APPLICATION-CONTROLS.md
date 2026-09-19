@@ -16,10 +16,13 @@ batch, or change the startup configuration. Stopping the application does not
 cancel a print job already accepted by CUPS.
 
 Requests require operator authentication and its CSRF token. The coordinator
-blocks new captures before acknowledging. Main-process shutdown closes the HTTP
-server, coordinator, camera workers and data lock. Restart uses `exec` to replace
-the same process after cleanup. It refuses to start a replacement if camera cleanup
-is incomplete. An uncertain browser request is never automatically repeated.
+blocks new captures before acknowledging. Cleanup runs while the HTTP server and data lock remain available. Operator shows
+which camera or coordinator operation is preventing shutdown. If a blocked call
+returns, shutdown continues; unconfirmed USB release prevents replacement. The
+server closes only after successful cleanup, and Restart uses `exec` to replace
+the same process, retaining the data lock until exec. Settings-restoration warnings
+are distinguished from failed USB release. See [USB recovery](USB-RECOVERY.md) for
+incident evidence, terminal guidance and remaining physical validation. An uncertain browser request is never automatically repeated.
 
 Tests cover authorization, active/held-state rejection, no shutter side effects,
 printing-mode preservation, cleanup failure and browser recovery. A real isolated

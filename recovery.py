@@ -14,7 +14,7 @@ class CameraRecovery:
 
     def begin_reconnect(self):
         if not self.reconnect_available():
-            raise ValueError('Cannot reconnect while a camera call/cleanup is running or USB release is unconfirmed; preserve the batch and restart after checking connections')
+            raise ValueError('Cannot reconnect while a camera call/cleanup is running or USB release is unconfirmed. Check the camera details and existing terminal; keep any held batch for review')
         self.reconnect_queue = [c for c, w in self.workers.items() if w.failure]
         self.reconnect_label = None
         self.phase, self.error = 'reconnecting', None

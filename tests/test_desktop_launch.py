@@ -2,6 +2,8 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import socket
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import desktop_launch as desktop
@@ -41,10 +43,29 @@ class DesktopLaunchTests(unittest.TestCase):
         self.assertFalse((self.root/'missing').exists())
 
     def test_busy_port_stops_without_camera_start(self):
-        with patch.object(desktop,'running',return_value=False), patch.object(desktop.socket,'socket') as sock, patch.object(desktop.os,'execvpe') as execute:
+        with patch.object(desktop,'running',return_value=False), patch.object(desktop.socket,'socket') as sock, patch.object(desktop.os,'execvpe') as execute, patch.object(desktop.subprocess, 'run', return_value=SimpleNamespace(stdout='users:(("python",pid=123,fd=10))')):
             sock.return_value.__enter__.return_value.bind.side_effect=OSError('in use')
-            with self.assertRaisesRegex(RuntimeError,'already occupied'):desktop.main(['--config',str(self.config)])
+            with self.assertRaisesRegex(RuntimeError,'already occupied.*PID 123.*existing Stripshot terminal'):
+                desktop.main(['--config',str(self.config)])
             execute.assert_not_called()
+
+    def test_instance_that_becomes_ready_during_probe_is_reused(self):
+        with patch.object(desktop, 'running', side_effect=[False,True]), patch.object(desktop.socket, 'socket') as sock, patch.object(desktop, 'open_pages') as pages, patch.object(desktop.os, 'execvpe') as execute:
+            sock.return_value.__enter__.return_value.bind.side_effect=OSError('in use')
+            self.assertEqual(desktop.main(['--config',str(self.config)]),0)
+            self.assertTrue(pages.call_args.kwargs['operator_only']); execute.assert_not_called()
+
+    def test_recently_closed_server_is_not_mistaken_for_an_existing_listener(self):
+        # Server initiates close, leaving TIME_WAIT on its local port.
+        with socket.socket() as listener:
+            listener.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+            listener.bind(('127.0.0.1',0)); listener.listen(); port=listener.getsockname()[1]
+            with socket.create_connection(('127.0.0.1',port)) as client:
+                accepted,_=listener.accept(); accepted.close()
+                self.assertEqual(client.recv(1),b'')
+        config=json.loads(self.config.read_text());config['port']=port;self.config.write_text(json.dumps(config))
+        with patch.object(desktop,'running',return_value=False), patch.object(desktop.getpass,'getpass',return_value='test-only-password'), patch.dict(os.environ,{'STRIPSHOT_OPERATOR_PASSWORD':''}), patch.object(desktop.os,'execvpe',side_effect=RuntimeError('exec boundary')):
+            with self.assertRaisesRegex(RuntimeError,'exec boundary'): desktop.main(['--config',str(self.config)])
 
     def test_second_click_while_password_pending_starts_nothing(self):
         with open(self.root/'.stripshot-desktop.lock','a+') as lock:

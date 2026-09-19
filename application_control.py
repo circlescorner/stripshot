@@ -1,10 +1,12 @@
 """Operator-requested clean shutdown; restart replaces the same process."""
 import os
+import logging
 from pathlib import Path
 import signal
 import sys
 import threading
-import time
+
+LOG = logging.getLogger(__name__)
 
 
 class ApplicationControl:
@@ -15,11 +17,14 @@ class ApplicationControl:
         self.action = None
         self.printing_enabled = None
         self.event = threading.Event()
+        self.closed = threading.Event()
+        self.state = 'idle'
+        self.message = None
 
     def available(self):
         e = self.engine
         return (e.config.get('kiosk_mode', False) and e.software and self.action is None
-                and e.phase in ('watching', 'error') and not e.state['current']
+                and e.phase in ('watching', 'error', 'reconnecting') and not e.state['current']
                 and not any(not f.done() for f in e.capture_futures))
 
     def request(self, candidate):
@@ -31,6 +36,8 @@ class ApplicationControl:
             self.action = candidate['action']
             self.printing_enabled = self.engine.config['printer']['enabled']
             self.engine.phase = 'stopping'
+            self.state = 'stopping'
+            self.message = 'Waiting for the coordinator and camera sessions to close safely.'
             # Close the coordinator to new capture/print actions before acknowledging.
             self.engine.stop_event.set()
             self.event.set()
@@ -38,8 +45,30 @@ class ApplicationControl:
 
     def watch(self):
         self.event.wait()
-        time.sleep(1)  # Let the HTTP acknowledgement reach the browser first.
-        os.kill(os.getpid(), signal.SIGTERM)
+        if self.closed.wait(1): return  # Let the HTTP acknowledgement reach the browser first.
+        previous = None
+        while not self.closed.is_set():
+            self.engine.stop(timeout=1)
+            if self.closed.is_set(): return
+            blockers = self.engine.cleanup_blockers()
+            with self.engine.lock:
+                self.state = 'blocked' if blockers else 'closing'
+                self.message = ('Shutdown is waiting: ' + '; '.join(blockers) +
+                    '. This instance still owns the booth. No replacement has started. '
+                    'Check camera power/USB and the existing terminal for details; do not start another copy. '
+                    'If release failed rather than remaining in progress, exit this instance from its terminal (Ctrl+C) before relaunching.'
+                    if blockers else 'Cameras released. Closing the booth now.')
+            if blockers != previous:
+                LOG.warning('%s requested: %s', self.action, self.message)
+                previous = blockers
+            if not blockers:
+                os.kill(os.getpid(), signal.SIGTERM)
+                return
+            self.closed.wait(.25)
+
+    def status(self):
+        return {'state': self.state, 'message': self.message,
+                'blockers': self.engine.cleanup_blockers() if self.action else []}
 
     def start(self):
         threading.Thread(target=self.watch, name='application-control', daemon=True).start()
@@ -53,10 +82,14 @@ class ApplicationControl:
 
     def finish(self):
         if self.action != 'restart': return
-        # Called only after server shutdown, Engine.stop(), and release of the data lock.
-        for worker in self.engine.workers.values():
-            if worker.is_alive(): worker.join(timeout=10)
-        if any(w.is_alive() or w.cleanup_error for w in self.engine.workers.values()):
-            raise RuntimeError('Camera cleanup did not finish cleanly. Stripshot stopped without starting another camera owner')
+        # Called with the data lock held, after server shutdown and Engine.stop().
+        blockers = self.engine.cleanup_blockers()
+        if blockers:
+            raise RuntimeError('Camera cleanup did not finish cleanly: ' + '; '.join(blockers) +
+                               '. No replacement camera owner was started')
         command = self.restart_command()
         os.execv(command[0], command)
+
+    def close(self):
+        self.closed.set()
+        self.event.set()
